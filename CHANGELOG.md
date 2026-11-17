@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-17 17:40
+
+### Added
+- **Windows.** Feuille runs on Windows 10 and 11 (x64): unzip the archive and start feuille.exe. Each archive, Windows and Linux, carries PDFium beside the program: nothing else to install.
+
 ## [0.1.0] - 2026-11-17 11:02
 
 ### Added
@@ -11,4 +16,5 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.2.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.1.0
