@@ -5,6 +5,7 @@ package feuille
 // standard settings by prefs_page.standard_watch, feuille's by settings_changed. The writer saves the file off the
 // interface's thread.
 
+import "base:runtime"
 import i18n "gt:i18n"
 import lucide "gt:lucide"
 import prefs_page "gt:prefs_page"
@@ -20,12 +21,11 @@ settings_keys :: proc(app: ^App) {
 	if prefs_page.escape_leaves(&app.settings_page) { app.settings_open = false }
 }
 
-@(private = "file", rodata) GENERAL_NAMES := [?]string{prefs_page.MESSAGES_PREF, prefs_page.LANGUAGE_PREF}
-
-// The pages, their order and their icons: each a group of the registry (a name's first segment).
+// The pages, their order and their icons: each a group of the registry (a name's first segment). The toolkit adds its
+// own: the licence, the installation, What's new, the diagnostics.
 @(private = "file")
 SETTINGS_PAGES := [?]prefs_page.Page_Info{
-	{category = "general",    title = i18n.later("General"),          icon = lucide.SETTINGS, names = GENERAL_NAMES[:]},
+	{category = "general",    title = i18n.later("General"),          icon = lucide.SETTINGS},
 	{category = "view",       title = i18n.later("Document"),         icon = lucide.FILE_TEXT},
 	{category = "appearance", title = i18n.later("Appearance"),       icon = lucide.PALETTE},
 	{category = "window",     title = i18n.later("Window"),           icon = lucide.APP_WINDOW},
@@ -52,14 +52,22 @@ settings_options :: proc(app: ^App) -> prefs_page.Page_Options {
 		file = app.prefs_path,
 		version = APP_TITLE + " " + APP_VERSION,
 		themes = app.themes_file.all[:], themes_light = app.theme_shown.light, themes_file = &app.themes_file,
-		changelog = &app.changelog, licence = &app.licence, diagnostics = &app.main,
+		changelog = &app.changelog, licence = &app.licence, install = &app.install, diagnostics = &app.main,
 	}
 }
 
-// A preference was set or reset: feuille's read again (the standard ones are applied by standard_watch already).
+// A preference was set or reset: feuille's read again (the standard ones are applied by standard_watch already); the
+// menu's and the session's switches are made so on the desktop.
 @(private = "file")
 settings_changed :: proc(user: rawptr, name: string) {
 	app := (^App)(user)
+	settings_reread(app)
+	if name == prefs_page.MENU_PREF || name == prefs_page.AUTOSTART_PREF { desktop_follow(app) }
+}
+
+// feuille's values read again from the registry, and what follows them.
+settings_reread :: proc(app: ^App) {
+	context.allocator = runtime.heap_allocator()   // (the settings are the App's, whoever calls: the page, a command)
 	settings_free(&app.settings)
 	app.settings = prefs_read(&app.prefs)
 	app.announcer.mode = announce_mode(app)

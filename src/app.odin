@@ -2,8 +2,9 @@ package feuille
 
 // The program's state: the window, its settings, the worker, and the document as the interface shows it. Everything
 // here belongs to the interface's thread; the worker's answers arrive through ui.post (on_opened, on_open_failed,
-// on_picture). Reading the preferences, the themes file and the last crash at the start is the one exception to "no
-// file on this thread": they size and style the window before it exists.
+// on_picture). Reading the preferences, the themes file, the memory of the documents (recent.odin) and the last crash
+// at the start is the one exception to "no file on this thread": they size and style the window, and say what it
+// opens, before it is shown. Whatever else waits on the system is a task (launch.odin, integration.odin).
 
 import "base:runtime"
 import "core:fmt"
@@ -14,12 +15,15 @@ import "core:strings"
 import config "gt:config"
 import crash_bar "gt:crash_bar"
 import "gt:devtools"
+import "gt:font"
 import host "gt:host"
 import i18n "gt:i18n"
 import "gt:platform"
 import prefs_page "gt:prefs_page"
+import process "gt:process"
 import "gt:render"
 import setup "gt:setup"
+import tasks "gt:tasks"
 import "gt:ui"
 import pdf "pdf"
 
@@ -65,6 +69,11 @@ App :: struct {
 	frame:         u64,
 	quit:          bool,
 	launch_after:  string,   // the program started again once this one ends (an update, Restart); owned
+	exe:           string,   // this program's file, read once at the start (an update puts a new one in its place); owned
+	pool:          tasks.Pool,   // what waits on the system: the launches, the applications of "Open with" (launch.odin)
+	desktop_pool:  tasks.Pool,   // the desktop's integration followed, one change at a time (integration.odin)
+	install:       prefs_page.Install,   // the install: its offer, its dialog, the settings' page (integration.odin)
+	opened:        [dynamic]string,      // headless: what a launch would have started (owned)
 
 	// the settings and what follows them
 	prefs:         config.Prefs,
@@ -123,6 +132,10 @@ App :: struct {
 	drop_at:       int,           // where it would go, an index
 	text_mode:     bool,          // a click on a page picks a text block
 	text:          Text_Edit,
+	go_jump:       bool,          // go_to is reached at once, not scrolled to (a document opened at its last page)
+	memory:        Memory,        // the recent PDFs, each one's page and zoom (recent.odin)
+	reopening:     bool,          // the open under way is the last document's, at the start: a failure is not said
+	handlers:      Handlers,      // the applications that open a PDF, for the menus' "Open with" (launch.odin)
 
 	// what waits for an answer of a confirmation
 	leave_next:    Leave_Next,
@@ -156,6 +169,8 @@ app_open :: proc(o: App_Options) -> ^App {
 	app := new(App)
 	app.headless = o.headless
 	app.go_to = -1
+	// (read once: after an update the file is the new program, and a restart reads no file on this thread)
+	app.exe = strings.clone(process.executable_path())
 	crash_bar.init(&app.crash_bar, o.last_crash)
 	_, problems := prefs_open(&app.prefs, o.pref_args, read_file = !o.headless)
 	for p in problems { log.warnf("feuille: %s", p) }
@@ -167,13 +182,29 @@ app_open :: proc(o: App_Options) -> ^App {
 		config.user_writer_start(&app.prefs_writer, &app.prefs, app.prefs_path)
 	}
 	prefs_page.themes_file_init(&app.themes_file, o.headless ? "" : themes_file(), themes())
+	prefs_page.install_init(&app.install, &app.prefs, setup_options())
+	memory_open(app)
 
+	// (before the first window: Wayland and the taskbar group the windows by it)
+	if !o.headless { platform.set_app_id(APP_NAME) }
 	size := o.size != {} ? o.size : app.settings.size
 	if !host.host_open(&app.main, &app.shared, {title = APP_TITLE, size = size, integrated_title = !o.headless && !app.settings.system_title, headless = o.headless}, view_build, app) {
 		app_free(app)
 		return nil
 	}
 	h := &app.main
+	// (offered where the system can draw a title bar: Windows, X11, a Wayland compositor with server-side ones)
+	if r := config.ref_of(&app.prefs, prefs_page.SYSTEM_TITLE_PREF); r != config.NO_REF {
+		config.entry(&app.prefs, r).def.hidden = !platform.system_title_available(h.win)
+	}
+	// (the vendor signs the install's dialog and page; a texture of this window's renderer)
+	prefs_page.install_vendor_mark(&app.install, &app.shared.r, VENDOR_MARK_PNG)
+	// (the person's emoji font, read at the start: the tests' fonts are compiled in)
+	if !o.headless {
+		if path := config.string_of(&app.prefs, prefs_page.EMOJI_FONT_PREF); path != "" { font.set_emoji_source(&app.shared.fonts, path) }
+	}
+	tasks.start(&app.pool, {threads = 1, grow = 2})
+	tasks.start(&app.desktop_pool, {threads = 1})
 	if !o.headless {
 		ui.views_init(&app.views, {path = views_path()})
 	} else {
@@ -191,10 +222,11 @@ app_open :: proc(o: App_Options) -> ^App {
 	// (an edited document asks first: the window stays until the answer)
 	h.close_asked = proc(h: ^host.Host) { leave_document((^App)(h.user), .Quit) }
 	licence_init(app)
+	desktop_follow(app)
 	if !o.headless {
-		ui.set_file_dialogs(&h.state, .System)
+		// (what each file dialog remembers: read on the chores, written by its own thread)
+		ui.file_dialog_memory(&h.state, file_dialogs_path())
 		platform.drop_target_enable(h.win, true)
-		platform.set_app_id(APP_NAME)
 		app.devtools = devtools.start_from_env(h.win, APP_NAME)
 		h.before_input = proc(h: ^host.Host) { app := (^App)(h.user); devtools.service(app.devtools, &h.state, &app.shared.r) }
 		prefs_page.placement_restore(&app.placement, &app.prefs, h.win)
@@ -213,7 +245,14 @@ app_open :: proc(o: App_Options) -> ^App {
 	app.last_ask = make([dynamic]Render_Ask)
 	app.frame_asks = make([dynamic]Render_Ask)
 	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture, saved = on_saved, text = on_text})
-	if o.path != "" { app_open_file(app, o.path, "") }
+	switch {
+	case o.path != "":
+		app_open_file(app, o.path, "")
+	// (no file given: the last one again, unless the settings say no)
+	case app.settings.reopen_last && len(app.memory.recent) > 0:
+		app_open_file(app, app.memory.recent[0], "")
+		app.reopening = true
+	}
 	return app
 }
 
@@ -233,16 +272,23 @@ app_close :: proc(app: ^App) {
 	if !app.headless && app.main.win != nil { prefs_page.placement_keep(&app.placement, &app.prefs, app.main.win) }
 	ui.post_close(&app.main.state)
 	worker_stop(&app.worker)
+	// (their answers find the window closed: each task frees what it was given)
+	tasks.stop(&app.pool)
+	tasks.stop(&app.desktop_pool)
 	prefs_page.updates_stop(&app.updates)
 	devtools.stop(app.devtools)
 	pictures_clear(app)   // (before the renderer goes: the textures are its)
 	thumbs_clear(app)
 	// (a dialog's answer comes to the window's state: the chores end before it does)
 	ui.chores_stop()
+	// (the install's thread waited for, before the window's state goes; its vendor's mark is this renderer's)
+	prefs_page.install_end(&app.install)
 	prefs_page.changelog_destroy(&app.changelog)
 	crash_bar.destroy(&app.crash_bar)
 	ui.views_destroy(&app.views)
 	host.host_close(&app.main)
+	// (the window closed and the instance let go: the installed copy the install opened starts now, and owns it)
+	prefs_page.install_launch(&app.install)
 	launch := app.launch_after
 	app.launch_after = ""
 	app_free(app)
@@ -268,6 +314,11 @@ app_free :: proc(app: ^App) {
 	delete(app.asked)
 	delete(app.failed)
 	delete(app.status)
+	delete(app.exe)
+	for o in app.opened { delete(o) }
+	delete(app.opened)
+	handlers_free(&app.handlers)
+	memory_close(app)   // (what changed is written: the stores' workers end)
 	ui.line_edit_destroy(&app.password)
 	ui.zoom_zone_destroy(&app.zone)
 	ui.palette_destroy(&app.palette)
@@ -318,6 +369,7 @@ app_open_file :: proc(app: ^App, path, password: string) {
 	}
 	app.pending = .Loading
 	app.settings_open = false
+	app.reopening = false   // (an open asked now is the person's: its failure is said)
 	worker_open(&app.worker, path, password)
 	host.host_settle(&app.main)
 }
@@ -356,7 +408,15 @@ on_opened :: proc(data: rawptr, _: u64) {
 		app.layer = app.settings.layer   // (each document opens as the settings say: masked, unless asked)
 		app.text_mode = false
 		app.selected, app.selected_at = s.pages[0].id, 0
+		app.reopening = false
 		ui.line_edit_clear(&app.password)
+		// (the page it showed last, at once; its zoom is the zone's memory, by its path)
+		if page := recent_page(app, s.path); page > 0 && page < len(s.pages) {
+			go_to_page(app, page)
+			app.go_jump = true
+		}
+		app.memory.page_kept = -1
+		recent_add(app, s.path)
 	} else {
 		at := selected_index(app)
 		if at < 0 && len(s.pages) > 0 {
@@ -462,6 +522,14 @@ on_open_failed :: proc(data: rawptr, _: u64) {
 		ui.line_edit_clear(&app.password)
 	} else {
 		app.pending = .None
+		// (a file that is gone leaves the recent ones)
+		if f.error == .File { recent_forget(app, f.path) }
+		if app.reopening {
+			// (the last document, gone since: the window starts empty, as with no last document)
+			app.reopening = false
+			host.host_settle(&app.main)
+			return
+		}
 		app.failure = f.error
 		delete(app.failed)
 		app.failed = strings.clone(f.path)
@@ -534,9 +602,7 @@ app_input :: proc(h: ^host.Host, events: []platform.Event) -> []platform.Event {
 			effect: Maybe(platform.Drop_Effect) = .Copy
 			if e.kind == .Drop {
 				if path != "" {
-					delete(app.leave_path)
-					app.leave_path = strings.clone(path)
-					leave_document(app, .Open_File)
+					open_asked(app, path)
 				} else {
 					effect = nil
 				}

@@ -2,8 +2,10 @@ package feuilletool
 
 // The site, made when it is deployed (.github/workflows/pages.yml) so that it cannot be behind a release. The steps are
 // the toolkit's (gt:site, its `site` command: build <site> <out>, check, card); this file says what this site is: its
-// address, names and colours. {{version}} in the home page is the last version.
+// address, names and colours, and its own check of the downloads. {{version}} in the home page is the last version.
 
+import "core:fmt"
+import json "gt:json"
 import tk_site "gt:site"
 import toolbox "gt:toolbox"
 
@@ -57,5 +59,35 @@ SHOP :: tk_site.Shop{
 }
 
 site_command :: proc() -> toolbox.Command {
-	return tk_site.command({meta = site_meta(), pages = {version_mark = VERSION_MARK, downloads = SITE_DOWNLOADS[:]}, images = tk_site.images_default()})
+	return tk_site.command({meta = site_meta(), pages = {version_mark = VERSION_MARK, downloads = SITE_DOWNLOADS[:]}, extra = site_downloads, images = tk_site.images_default()})
+}
+
+// A browser of each system (what it says it runs on), and the download the home page offers it: the file of the
+// button, and the other system's in the line under it. A phone gets the first of SITE_DOWNLOADS: whoever reads it there
+// installs it on a computer.
+@(private = "file")
+Site_System :: struct { name, agent, platform, data, button, other: string }
+
+@(private = "file", rodata)
+SITE_SYSTEMS := [?]Site_System{
+	{"Windows", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36", "Win32", "Windows", "-windows-x64.zip", "-linux-x64.tar.gz"},
+	{"Linux", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36", "Linux x86_64", "Linux", "-linux-x64.tar.gz", "-windows-x64.zip"},
+	{"Android", "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36", "Linux armv8l", "Android", "-windows-x64.zip", "-linux-x64.tar.gz"},
+}
+
+// The site check's own step: the home page, as each system's browser sees it, offers that system's file.
+site_downloads :: proc(s: ^tk_site.Check) {
+	for sys in SITE_SYSTEMS {
+		tk_site.check_call(s, "Emulation.setUserAgentOverride", fmt.tprintf(`{{"userAgent":%s,"platform":%s,"userAgentMetadata":{{"platform":%s,"platformVersion":"","architecture":"x86","model":"","mobile":false}}}}`,
+			json.quote(sys.agent), json.quote(sys.platform), json.quote(sys.data)))
+		if !tk_site.check_go(s, "index.html") { continue }
+		// (the button shown: the one with a box)
+		button :: `[...document.querySelectorAll('.hero [data-download-os]')].find((e) => e.getClientRects().length > 0)`
+		other :: `[...document.querySelectorAll('.hero [data-download-others]')].find((e) => e.getClientRects().length > 0).querySelector('a')`
+		tk_site.check_expect(s, tk_site.check_true(s, fmt.tprintf(`%s.href.endsWith(%s)`, button, json.quote(sys.button))),
+			fmt.tprintf("index.html, %s: the button is %s (%s)", sys.name, sys.button, tk_site.check_text(s, button + ".href")))
+		tk_site.check_expect(s, tk_site.check_true(s, fmt.tprintf(`%s.href.endsWith(%s)`, other, json.quote(sys.other))),
+			fmt.tprintf("index.html, %s: the other is %s (%s)", sys.name, sys.other, tk_site.check_text(s, other + ".href")))
+	}
+	tk_site.check_call(s, "Emulation.setUserAgentOverride", `{"userAgent":""}`)   // (the browser's own again)
 }

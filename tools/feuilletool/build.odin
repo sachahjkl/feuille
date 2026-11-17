@@ -11,5 +11,6 @@ import toolbox "gt:toolbox"
 
 build_options :: proc() -> toolbox.Build_Options {
 	p := project()
-	return {project = p, changelog_command = changelog.command(p), tests = TESTS[:], catalogues = I18N, prepare = pdfium_prepare}
+	// (notices: the archive ships THIRD-PARTY-NOTICES, so check keeps it up to date)
+	return {project = p, changelog_command = changelog.command(p), tests = TESTS[:], catalogues = I18N, prepare = pdfium_prepare, notices = true}
 }

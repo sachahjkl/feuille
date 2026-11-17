@@ -13,6 +13,7 @@ import prefs_page "gt:prefs_page"
 import "gt:ui"
 
 LAYER_PREF :: "view.form_layer"
+REOPEN_PREF :: "general.reopen_last"
 
 // feuille's identity in the standard settings: its theme and its name; the rest is the toolkit's.
 @(private = "file")
@@ -24,6 +25,7 @@ standard_defaults :: proc() -> prefs_page.Standard_Defaults {
 
 // Registered in English before the language is known: the settings page translates them where it shows them.
 PREF_DEFS := [?]config.Def{
+	{name = REOPEN_PREF, title = i18n.later("Reopen the last PDF"), description = i18n.later("With no file given, Feuille opens the last PDF again, at the page and the zoom it showed."), kind = .Bool, default = {b = true}, tags = {"recent", "start", "restore", "session"}},
 	{name = LAYER_PREF, title = i18n.later("Form layer at open"), description = i18n.later("Draw the signatures, annotations and form fields when a PDF opens. Off: only the pages' own content is drawn, and nothing on the page can block it; Ctrl+L shows the layer for one document."), kind = .Bool, default = {b = false}, tags = {"signature", "annotation", "field", "form", "acrobat"}},
 	{name = "window.width", title = i18n.later("Width"), description = i18n.later("The window's width at its first start, in logical pixels."), kind = .Int, default = {i = 900}, min = 320, max = 6000, bounded = true, value_kind = .Length, unit = .Pixel, tags = {"size", "window"}},
 	{name = "window.height", title = i18n.later("Height"), description = i18n.later("The window's height at its first start, in logical pixels."), kind = .Int, default = {i = 1000}, min = 240, max = 6000, bounded = true, value_kind = .Length, unit = .Pixel, tags = {"size", "window"}},
@@ -32,6 +34,7 @@ PREF_DEFS := [?]config.Def{
 // The values the program reads, copied out of the registry (prefs_read).
 Settings :: struct {
 	layer:        bool,
+	reopen_last:  bool,
 	look:         prefs_page.Appearance,
 	size:         [2]int,
 	system_title: bool,
@@ -56,11 +59,19 @@ views_path :: proc(allocator := context.temp_allocator) -> string {
 	return strings.concatenate({platform.user_dir(.State, APP_FOLDER, context.temp_allocator), "/views.txt"}, allocator)
 }
 
+// Where the file dialogs remember their folder, their size and their recent folders (ui.file_dialog_memory).
+file_dialogs_path :: proc(allocator := context.temp_allocator) -> string {
+	return strings.concatenate({platform.user_dir(.State, APP_FOLDER, context.temp_allocator), "/file_dialogs.txt"}, allocator)
+}
+
 // The registry, the user's file read in unless `read_file` is false (the tests), then `args`' --pref. Returns the
 // arguments that are not preferences, and what was wrong.
 prefs_open :: proc(p: ^config.Prefs, args: []string, read_file := true, descriptions := context.allocator) -> (rest: [dynamic]string, problems: [dynamic]string) {
 	p^ = config.prefs_make()
 	prefs_page.standard_register(p, prefs_page.STANDARD_ALL, standard_defaults(), descriptions)
+	// (the launcher and the start with the session apply to the copy that is integrated: their switches show once a
+	// task found this copy is it, desktop_follow)
+	desktop_owned_hide(p, true)
 	config.register(p, PREF_DEFS[:])
 	prefs_page.changelog_register(p)   // (the version last started: What's new after an update)
 	file_problems: [dynamic]string
@@ -72,6 +83,7 @@ prefs_open :: proc(p: ^config.Prefs, args: []string, read_file := true, descript
 
 prefs_read :: proc(p: ^config.Prefs, allocator := context.allocator) -> (s: Settings) {
 	s.layer = config.bool_of(p, LAYER_PREF)
+	s.reopen_last = config.bool_of(p, REOPEN_PREF)
 	s.look = prefs_page.appearance_read(p, allocator)
 	s.system_title = config.bool_of(p, prefs_page.SYSTEM_TITLE_PREF)
 	s.size = {int(config.int_of(p, "window.width")), int(config.int_of(p, "window.height"))}

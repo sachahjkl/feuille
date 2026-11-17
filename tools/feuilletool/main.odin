@@ -27,9 +27,19 @@ project :: proc() -> toolbox.Project {
 		version_file = "src/main.odin", version_line = "APP_VERSION :: ", program = PROGRAM,
 		title = "Feuille", description = "Open a PDF at once, arrange its pages, change its words.",
 		publisher = "Froment Software", copyright = "Copyright (c) 2026 sachahjkl",
-		// (only the icons feuille names are compiled in; the DevTools endpoint in a release too, for the live test)
-		features = {.Lucide_Subset, .Devtools},
+		// (only the icons feuille names are compiled in; the DevTools endpoint in a release too, for the live test; WebP
+		// read and written, as the suite's other programs; screen readers on Windows through AccessKit)
+		features = {.Lucide_Subset, .Devtools, .Webp, .Accessibility},
+		// (feuille.com, the console launcher: a file, or none, opens a window and gives the prompt back; the install's
+		// commands and the help wait and give their output and exit code through)
+		launcher = {default_rule = "detach", others = "install,--install,uninstall,--uninstall,status,--status,version,--version,help,-h,--help"},
+		works = WORKS[:],
 	}
+}
+
+// THIRD-PARTY-NOTICES: what feuille ships beside the toolkit's own. (A variable: the Project keeps a slice of it.)
+WORKS := [?]toolbox.Project_Work{
+	{name = "PDFium (the PDF engine, beside the program)", licence = "BSD-3-Clause AND Apache-2.0", file = "assets/licences/PDFIUM-LICENSE.txt"},
 }
 
 // The `licence` and `paddle` commands: feuille's licence (src/licence), its development pair, its Paddle catalogue.
@@ -51,6 +61,7 @@ when ODIN_OS == .Windows {
 @(rodata)
 RELEASE_FILES := [?][2]string{
 	{"README.md", "README.md"}, {"LICENSE", "LICENSE"}, {"CHANGELOG.md", "CHANGELOG.md"},
+	{"THIRD-PARTY-NOTICES", "THIRD-PARTY-NOTICES"},
 	{"ext/gui_toolkit/src/lucide/LICENSE.txt", "LUCIDE-LICENSE.txt"},
 	{PDFIUM_LIBRARY, PDFIUM_FILE}, {PDFIUM_LICENCE, "PDFIUM-LICENSE.txt"},
 }
@@ -73,6 +84,7 @@ commands :: proc() -> []toolbox.Command {
 		toolbox.Command{name = "update", usage = "keygen <file> | pubkey | manifest <program> <version> - <out> | verify <manifest> -: feuille's update key and manifests", run = proc(args: []string) -> cli.Exit { return toolbox.update_command(feuille_update.PRODUCT, args) }},
 		changelog.command(p),
 		toolbox.i18n_command(I18N),
+		toolbox.notices_command(p),
 		site_command(),
 		l[0], l[1],
 	)

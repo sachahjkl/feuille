@@ -155,7 +155,7 @@
         for size in 16 32 64 128 256; do
           install -Dm644 assets/logo_$size.png "$out/share/icons/hicolor/''${size}x''${size}/apps/feuille.png"
         done
-        install -Dm644 -t $out/share/doc/feuille LICENSE README.md CHANGELOG.md
+        install -Dm644 -t $out/share/doc/feuille LICENSE README.md CHANGELOG.md THIRD-PARTY-NOTICES
         install -Dm644 ext/gui_toolkit/src/lucide/LICENSE.txt $out/share/doc/feuille/LUCIDE-LICENSE.txt
         runHook postInstall
       '';

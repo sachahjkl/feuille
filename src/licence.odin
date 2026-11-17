@@ -12,9 +12,10 @@ import feuille_licence "licence"
 PRICING_URL :: "https://feuille.froment.software/pricing/"
 
 licence_init :: proc(app: ^App) {
-	// (a debug build accepts the development pair: the tests and the pictures register with it)
+	// (a debug build accepts the development pair: the tests and the pictures register with it; the tests keep it in
+	// memory, the person's folder untouched)
 	prefs_page.licence_init(&app.licence, &app.main.state, {
-		store = {product = feuille_licence.PRODUCT, program = APP_FOLDER, accept_dev = ODIN_DEBUG},
+		store = {product = feuille_licence.PRODUCT, program = APP_FOLDER, memory = app.headless, accept_dev = ODIN_DEBUG},
 		name = APP_TITLE, pricing_url = PRICING_URL, owner = app.main.win,
 		logo = #load("../assets/logo_256.png"), vendor = "Froment Software",
 	})

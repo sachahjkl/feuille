@@ -4,6 +4,7 @@ package feuille
 // the keys, the tools' tips, the command palette (Ctrl+K) and the sheet of the keys (F1). The page edits act on the
 // selected page (a click on a page or a thumbnail selects it).
 
+import "base:runtime"
 import "core:fmt"
 import "core:path/filepath"
 import "core:slice"
@@ -13,7 +14,6 @@ import lucide "gt:lucide"
 import "gt:platform"
 import prefs_page "gt:prefs_page"
 import "gt:ui"
-import update "gt:update"
 
 Action :: enum u8 {
 	Open,
@@ -38,9 +38,34 @@ Action :: enum u8 {
 	Next_Page,
 	First_Page,
 	Last_Page,
+	Open_With,
+	Reveal,
+	Copy_Path,
+	Go_To_Page,
+	Recent,
 	Settings,
-	Check_Updates,
 	Shortcuts,
+	// the program's own (program_actions.odin): the suite's commands, by its ids and keys
+	New_Window,
+	Minimize,
+	Maximize,
+	Full_Screen,
+	Check_Updates,
+	Update_Install,
+	Update_Restart,
+	About,
+	Website,
+	Report,
+	Changelog,
+	Settings_Folder,
+	Version_Copy,
+	Theme_Next,
+	Theme_Previous,
+	Density,
+	Animations,
+	Text_Bigger,
+	Text_Smaller,
+	Text_Reset,
 	Restart,
 	Quit,
 }
@@ -68,11 +93,36 @@ ACTIONS := [Action]ui.Command{
 	.Next_Page     = {id = "next_page", label = i18n.later("Next page"), group = i18n.later("View"), keys = {{.Page_Down, {}}}, icon = lucide.CHEVRON_DOWN, tags = {"forward"}},
 	.First_Page    = {id = "first_page", label = i18n.later("First page"), group = i18n.later("View"), keys = {{.Home, {.Ctrl}}}, icon = lucide.ARROW_UP, tags = {"top", "start"}},
 	.Last_Page     = {id = "last_page", label = i18n.later("Last page"), group = i18n.later("View"), keys = {{.End, {.Ctrl}}}, icon = lucide.ARROW_DOWN, tags = {"bottom", "end"}},
+	.Open_With     = {id = "open_with", label = i18n.later("Open with another application…"), group = i18n.later("Document"), icon = lucide.APP_WINDOW, tags = {"system's application", "external", "default app"}},
+	.Reveal        = {id = "reveal", label = i18n.later("Show in folder"), group = i18n.later("Document"), icon = lucide.FOLDER_SEARCH, tags = {"file manager", "explorer", "where"}},
+	.Copy_Path     = {id = "copy_path", label = i18n.later("Copy the path"), group = i18n.later("Document"), keys = {{.C, {.Ctrl, .Shift}}}, icon = lucide.LINK, tags = {"clipboard", "file name", "location"}},
+	.Go_To_Page    = {id = "go_to_page", label = i18n.later("Go to a page…"), group = i18n.later("View"), keys = {{.G, {.Ctrl}}}, icon = lucide.HASH, tags = {"page number", "jump"}},
+	.Recent        = {id = "recent", label = i18n.later("Open a recent PDF…"), group = i18n.later("Document"), keys = {{.O, {.Ctrl, .Shift}}}, icon = lucide.HISTORY, tags = {"history", "last", "reopen"}, scope = .Window},
 	.Settings      = {id = "settings", label = i18n.later("Settings"), group = i18n.later("Feuille"), keys = {{.Comma, {.Ctrl}}}, icon = lucide.SETTINGS, tags = {"preferences", "options", "configure"}, scope = .Window},
-	.Check_Updates = {id = "check_updates", label = i18n.later("Check for updates"), group = i18n.later("Feuille"), icon = lucide.REFRESH_CW, tags = {"upgrade", "version", "new"}},
 	.Shortcuts     = {id = "shortcuts", label = i18n.later("Keyboard shortcuts"), group = i18n.later("Feuille"), keys = {{.F1, {}}}, icon = lucide.KEYBOARD, tags = {"help", "keys", "hotkeys"}, scope = .Window},
-	.Restart       = {id = "restart", label = i18n.later("Restart Feuille"), group = i18n.later("Feuille"), icon = lucide.ROTATE_CCW, tags = {"reload", "relaunch"}},
-	.Quit          = {id = "quit", label = i18n.later("Quit Feuille"), group = i18n.later("Feuille"), keys = {{.Q, {.Ctrl}}}, icon = lucide.POWER, tags = {"exit", "close", "stop"}, scope = .Window},
+	.New_Window    = {id = "app_new_window", label = i18n.later("New window"), group = i18n.later("Window"), keys = {{.N, {.Ctrl}}}, icon = lucide.APP_WINDOW, tags = {"another window", "open"}, scope = .Window},
+	.Minimize      = {id = "app_minimize", label = i18n.later("Minimize window"), group = i18n.later("Window"), keys = {{.F9, {.Alt}}}, icon = lucide.ARROW_DOWN, tags = {"hide", "iconify", "taskbar"}, scope = .Window},
+	.Maximize      = {id = "app_maximize", label = i18n.later("Maximize window"), group = i18n.later("Window"), keys = {{.F10, {.Alt}}}, icon = lucide.MONITOR, tags = {"restore", "whole screen", "zoom window"}, scope = .Window},
+	.Full_Screen   = {id = "app_full_screen", label = i18n.later("Full screen"), group = i18n.later("Window"), keys = {{.F11, {}}}, icon = lucide.FILM, tags = {"fullscreen", "kiosk", "whole screen"}, scope = .Window},
+	.Check_Updates = {id = "app_update_check", label = i18n.later("Check for updates"), group = i18n.later("Feuille"), keys = {{.U, {.Ctrl, .Alt}}}, icon = lucide.DOWNLOAD, tags = {"upgrade", "new version", "release"}, scope = .Window},
+	.Update_Install = {id = "app_update_install", label = i18n.later("Install the update"), group = i18n.later("Feuille"), keys = {{.U, {.Ctrl, .Shift, .Alt}}}, icon = lucide.HARD_DRIVE_DOWNLOAD, tags = {"upgrade", "download", "new version"}, scope = .Window},
+	.Update_Restart = {id = "app_update_restart", label = i18n.later("Restart to update"), group = i18n.later("Feuille"), keys = {{.Q, {.Ctrl, .Shift, .Alt}}}, icon = lucide.FILE_DOWN, tags = {"relaunch", "upgrade", "new version"}, scope = .Window},
+	.About         = {id = "app_about", label = i18n.later("About Feuille"), group = i18n.later("Feuille"), keys = {{.F1, {.Shift}}}, icon = lucide.LIGHTBULB, tags = {"version", "credits", "info"}, scope = .Window},
+	.Website       = {id = "app_website", label = i18n.later("Open the website"), group = i18n.later("Feuille"), keys = {{.F1, {.Ctrl}}}, icon = lucide.GLOBE, tags = {"site", "home page", "web"}, scope = .Window},
+	.Report        = {id = "app_report", label = i18n.later("Report a problem"), group = i18n.later("Feuille"), keys = {{.F1, {.Ctrl, .Shift}}}, icon = lucide.BUG, tags = {"bug", "issue", "feedback", "help"}, scope = .Window},
+	.Changelog     = {id = "app_changelog", label = i18n.later("Release notes"), group = i18n.later("Feuille"), keys = {{.F2, {.Shift}}}, icon = lucide.SCROLL_TEXT, tags = {"changelog", "what is new", "changes", "releases"}, scope = .Window},
+	.Settings_Folder = {id = "app_settings_folder", label = i18n.later("Open settings folder"), group = i18n.later("Feuille"), keys = {{.Comma, {.Ctrl, .Shift}}}, icon = lucide.WRENCH, tags = {"configuration", "config", "preferences file"}, scope = .Window},
+	.Version_Copy  = {id = "app_version_copy", label = i18n.later("Copy the version"), group = i18n.later("Feuille"), keys = {{.V, {.Ctrl, .Shift, .Alt}}}, icon = lucide.CODE, tags = {"about", "number", "clipboard"}, scope = .Window},
+	.Theme_Next    = {id = "app_theme_next", label = i18n.later("Next theme"), group = i18n.later("Appearance"), keys = {{.Period, {.Ctrl, .Shift, .Alt}}}, icon = lucide.PALETTE, tags = {"color", "colour", "dark", "light", "look"}, scope = .Window},
+	.Theme_Previous = {id = "app_theme_previous", label = i18n.later("Previous theme"), group = i18n.later("Appearance"), keys = {{.Comma, {.Ctrl, .Shift, .Alt}}}, icon = lucide.PALETTE, tags = {"color", "colour", "dark", "light", "look"}, scope = .Window},
+	.Density       = {id = "app_density", label = i18n.later("Compact rows"), group = i18n.later("Appearance"), keys = {{.D, {.Ctrl, .Shift, .Alt}}}, icon = lucide.MENU, tags = {"density", "comfortable", "spacing"}, scope = .Window},
+	.Animations    = {id = "app_animations", label = i18n.later("Animations"), group = i18n.later("Appearance"), keys = {{.A, {.Ctrl, .Shift, .Alt}}}, icon = lucide.PLAY, tags = {"motion", "transitions", "on or off"}, scope = .Window},
+	.Text_Bigger   = {id = "app_text_bigger", label = i18n.later("Larger text"), group = i18n.later("Appearance"), keys = {{.Equal, {.Ctrl, .Alt}}}, icon = lucide.TYPE, tags = {"font size", "bigger", "interface", "scale"}, scope = .Window},
+	.Text_Smaller  = {id = "app_text_smaller", label = i18n.later("Smaller text"), group = i18n.later("Appearance"), keys = {{.Minus, {.Ctrl, .Alt}}}, icon = lucide.TYPE, tags = {"font size", "interface", "scale"}, scope = .Window},
+	// (not Ctrl+0, the suite's key: here Ctrl+0 is the pages' zoom back to the width, the zoom zone's own key)
+	.Text_Reset    = {id = "app_text_reset", label = i18n.later("Default text size"), group = i18n.later("Appearance"), keys = {{.N0, {.Ctrl, .Alt}}}, icon = lucide.TYPE, tags = {"font size", "reset", "interface", "scale"}, scope = .Window},
+	.Restart       = {id = "app_restart", label = i18n.later("Restart Feuille"), group = i18n.later("Feuille"), keys = {{.Q, {.Ctrl, .Shift}}}, icon = lucide.ZAP, tags = {"relaunch", "reload", "reboot", "start again"}, scope = .Window},
+	.Quit          = {id = "app_quit", label = i18n.later("Quit Feuille"), group = i18n.later("Feuille"), keys = {{.Q, {.Ctrl}}}, icon = lucide.POWER, tags = {"exit", "close", "leave"}, scope = .Window},
 }
 
 // Whether the act can be done now.
@@ -87,9 +137,18 @@ action_enabled :: proc(app: ^App, a: Action) -> bool {
 	case .Move_Up:       return doc && index > 0
 	case .Move_Down:     return doc && index >= 0 && index < len(s.pages) - 1
 	case .Save, .Extract_Page, .Rotate_Right, .Rotate_Left, .Insert_Blank, .Insert_File, .Edit_Text,
-	     .Layer, .Thumbnails, .Zoom_In, .Zoom_Out, .Fit, .Previous_Page, .Next_Page, .First_Page, .Last_Page:
+	     .Layer, .Thumbnails, .Zoom_In, .Zoom_Out, .Fit, .Previous_Page, .Next_Page, .First_Page, .Last_Page, .Go_To_Page:
 		return doc
-	case .Open, .Settings, .Check_Updates, .Shortcuts, .Restart, .Quit:
+	// (the file's own acts: the document shown, whatever the page shows over it)
+	case .Open_With, .Reveal, .Copy_Path:
+		return s != nil
+	case .Recent:         return len(app.memory.recent) > 0
+	case .Check_Updates:  return has_updater(app)
+	case .Update_Install: return update_available(app)
+	case .Update_Restart: return update_installed(app)
+	case .Open, .Settings, .Shortcuts, .Restart, .Quit, .New_Window, .Minimize, .Maximize, .Full_Screen, .About,
+	     .Website, .Report, .Changelog, .Settings_Folder, .Version_Copy, .Theme_Next, .Theme_Previous, .Density,
+	     .Animations, .Text_Bigger, .Text_Smaller, .Text_Reset:
 		return true
 	}
 	return false
@@ -123,7 +182,7 @@ action_run :: proc(app: ^App, a: Action) {
 	case .Remove_Page:   worker_edit(w, edit_ask_make(w, .Remove, id = id))
 	case .Insert_Blank:  worker_edit(w, edit_ask_make(w, .Blank, id = id))
 	case .Insert_File:
-		ui.file_dialog(&app.main.state, .Open, {owner = app.main.win, title = i18n.tr("Add the pages of a PDF"), filters = PDF_FILTERS[:], all_files = true}, insert_chosen, app)
+		ui.file_dialog(&app.main.state, .Open, {owner = app.main.win, title = i18n.tr("Add the pages of a PDF"), filters = PDF_FILTERS[:], all_files = true, remember_id = "open"}, insert_chosen, app)
 	case .Move_Up:       worker_edit(w, edit_ask_make(w, .Move, id = id, to = selected_index(app) - 1))
 	case .Move_Down:     worker_edit(w, edit_ask_make(w, .Move, id = id, to = selected_index(app) + 1))
 	case .Edit_Text:
@@ -138,10 +197,34 @@ action_run :: proc(app: ^App, a: Action) {
 	case .Next_Page:     go_to_page(app, min(app.current + 1, len(app.snapshot.pages) - 1))
 	case .First_Page:    go_to_page(app, 0)
 	case .Last_Page:     go_to_page(app, len(app.snapshot.pages) - 1)
+	case .Go_To_Page:    palette_open_on(app, .Go_To)
+	case .Recent:        palette_open_on(app, .Paths)
+	case .Open_With:     act_open_with(app)
+	case .Reveal:        act_reveal(app)
+	case .Copy_Path:     act_copy_path(app)
 	case .Settings:      settings_toggle(app)
-	case .Check_Updates: if app.updates.updater != nil { update.check_now(app.updates.updater) }
 	// (the sheet adds the toolkit's palette command itself)
 	case .Shortcuts:     ui.shortcuts_sheet_open(&app.sheet, slice.enumerated_array(&ACTIONS), i18n.tr("Feuille's keys"))
+	case .New_Window:    act_new_window(app)
+	case .Minimize:      act_minimize(app)
+	case .Maximize:      act_maximize(app)
+	case .Full_Screen:   act_full_screen(app)
+	case .Check_Updates: act_update_check(app)
+	case .Update_Install: act_update_install(app)
+	case .Update_Restart: leave_document(app, .Restart)
+	case .About:         act_about(app)
+	case .Website:       act_website(app)
+	case .Report:        act_report(app)
+	case .Changelog:     act_changelog(app)
+	case .Settings_Folder: act_settings_folder(app)
+	case .Version_Copy:  act_version_copy(app)
+	case .Theme_Next:    act_theme_next(app)
+	case .Theme_Previous: act_theme_previous(app)
+	case .Density:       act_density(app)
+	case .Animations:    act_animations(app)
+	case .Text_Bigger:   act_text_bigger(app)
+	case .Text_Smaller:  act_text_smaller(app)
+	case .Text_Reset:    act_text_reset(app)
 	case .Restart:       leave_document(app, .Restart)
 	case .Quit:          leave_document(app, .Quit)
 	}
@@ -230,12 +313,20 @@ leave_document :: proc(app: ^App, next: Leave_Next) {
 	leave_now(app, next)
 }
 
+// A file to open from outside the open dialog (a drop, a second start, a recent PDF): an edited document asks first.
+open_asked :: proc(app: ^App, path: string) {
+	context.allocator = runtime.heap_allocator()
+	delete(app.leave_path)
+	app.leave_path = strings.clone(path)
+	leave_document(app, .Open_File)
+}
+
 leave_now :: proc(app: ^App, next: Leave_Next) {
 	switch next {
 	case .None:
 	case .Open_Dialog:
 		app.settings_open = false
-		ui.file_dialog(&app.main.state, .Open, {owner = app.main.win, title = i18n.tr("Open a PDF"), filters = PDF_FILTERS[:], all_files = true}, open_chosen, app)
+		ui.file_dialog(&app.main.state, .Open, {owner = app.main.win, title = i18n.tr("Open a PDF"), filters = PDF_FILTERS[:], all_files = true, remember_id = "open"}, open_chosen, app)
 	case .Open_File:
 		app_open_file(app, app.leave_path, "")
 	case .Quit:    app.quit = true
@@ -267,6 +358,7 @@ Palette_State :: struct {
 	made_for: Palette_Key,
 	made:     bool,
 	settings: prefs_page.Palette_Settings,
+	sources:  Palette_Sources,   // `@` the pages, `/` the recent PDFs (palette_sources.odin)
 }
 
 // What action_enabled reads: when one moves, `disabled` is read again.
@@ -275,6 +367,9 @@ Palette_Key :: struct {
 	selected: u64,
 	settings: bool,
 	pending:  Pending,
+	opened:   bool,      // a document is shown
+	recent:   u64,       // the memory's version
+	updates:  [3]bool,   // an updater, an update on offer, one in place
 }
 
 palette_init :: proc(app: ^App) {
@@ -282,12 +377,16 @@ palette_init :: proc(app: ^App) {
 	open :: proc(user: rawptr) { (^App)(user).settings_open = true }
 	options :: proc(user: rawptr) -> prefs_page.Page_Options { return settings_options((^App)(user)) }
 	prefs_page.palette_settings_add(&app.palette, &app.palette_state.settings, &app.prefs, &app.settings_page, options, open, app)
+	palette_sources_add(app)
 }
 
 @(private = "file")
 palette_give :: proc(app: ^App) {
 	ps := &app.palette_state
-	key := Palette_Key{app.snapshot != nil ? app.snapshot.revision : 0, app.selected, app.settings_open, app.pending}
+	key := Palette_Key{
+		app.snapshot != nil ? app.snapshot.revision : 0, app.selected, app.settings_open, app.pending, app.snapshot != nil,
+		app.memory.version, {has_updater(app), update_available(app), update_installed(app)},
+	}
 	if !ps.made || key != ps.made_for {
 		for a in Action { ps.disabled[a] = !action_enabled(app, a) }
 		ps.made_for, ps.made = key, true

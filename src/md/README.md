@@ -28,6 +28,11 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
 - The interactive layer: hidden (default) or shown. A change asks for new pictures; it never reloads the file.
 - An ask to the worker: the newest of each kind wins (a render ask replaces the waiting one; an edit never does).
 - Saving: idle → saving → idle; the result (written, or why not) is posted.
+- The start: a second start → forwarded (it ends); else the first → the last document reopened (`reopening`: its
+  failure is not said) or the file given, or empty. The end: the instance let go → the install's thread ended → the
+  installed copy or the restarted program started.
+- The desktop's switches (`general.menu`, `general.autostart`): hidden → shown once a task found this copy is the
+  integrated one.
 
 ## Subtleties
 
@@ -41,7 +46,10 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
 - [data/snapshot.md](data/snapshot.md): the page list the interface reads, page identities, revisions, the layout
 - [features/viewer.md](features/viewer.md): the column of pages, zoom, the visible pages, the picture cache
 - [features/window.md](features/window.md): the toolkit's settings, palette, theme, licence and updates around the
-  document; the README's pictures
+  document; the program's commands, the window's buttons, the context menus; the README's pictures
+- [features/desktop.md](features/desktop.md): the install, the single instance, the menu and the session switches,
+  what waits on the system
+- [features/memory.md](features/memory.md): the recent PDFs, each one's page and zoom, the last one at the start
 - [features/masked-opening.md](features/masked-opening.md): why the layer is hidden, the password, the copy without
   security, the day-one test
 - [features/page-edits.md](features/page-edits.md): turn, add, remove, reorder, undo, the saved copy

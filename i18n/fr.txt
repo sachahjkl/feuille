@@ -79,17 +79,95 @@ fr Première page
 en Last page
 fr Dernière page
 
+en Open with another application…
+fr Ouvrir avec une autre application…
+
+en Show in folder
+fr Afficher dans le dossier
+
+en Copy the path
+fr Copier le chemin
+
+en Go to a page…
+fr Aller à une page…
+
+en Open a recent PDF…
+fr Ouvrir un PDF récent…
+
 en Settings
 fr Réglages
 
 en Feuille
 fr Feuille
 
+en Keyboard shortcuts
+fr Raccourcis clavier
+
+en New window
+fr Nouvelle fenêtre
+
+en Window
+fr Fenêtre
+
+en Minimize window
+fr Réduire la fenêtre
+
+en Maximize window
+fr Agrandir la fenêtre
+
+en Full screen
+fr Plein écran
+
 en Check for updates
 fr Chercher les mises à jour
 
-en Keyboard shortcuts
-fr Raccourcis clavier
+en Install the update
+fr Installer la mise à jour
+
+en Restart to update
+fr Redémarrer pour mettre à jour
+
+en About Feuille
+fr À propos de Feuille
+
+en Open the website
+fr Ouvrir le site
+
+en Report a problem
+fr Signaler un problème
+
+en Release notes
+fr Notes de version
+
+en Open settings folder
+fr Ouvrir le dossier des réglages
+
+en Copy the version
+fr Copier la version
+
+en Next theme
+fr Thème suivant
+
+en Appearance
+fr Apparence
+
+en Previous theme
+fr Thème précédent
+
+en Compact rows
+fr Lignes compactes
+
+en Animations
+fr Animations
+
+en Larger text
+fr Texte plus grand
+
+en Smaller text
+fr Texte plus petit
+
+en Default text size
+fr Taille de texte par défaut
 
 en Restart Feuille
 fr Redémarrer Feuille
@@ -160,6 +238,84 @@ fr La police de ce texte ne contient que les lettres utilisées par le document 
 en %s cannot be opened: %s
 fr %s ne peut pas être ouvert : %s
 
+en Feuille in the terminal (on the PATH)
+fr Feuille dans le terminal (dans le PATH)
+
+en The desktop's launcher cannot be changed: %s
+fr Le lanceur du bureau ne peut pas être modifié : %s
+
+en No browser opens %s
+fr Aucun navigateur n'ouvre %s
+
+en No file manager opens %s
+fr Aucun gestionnaire de fichiers n'ouvre %s
+
+en %s cannot start
+fr %s ne peut pas démarrer
+
+en %s cannot be shown in its folder
+fr %s ne peut pas être affiché dans son dossier
+
+en No window could be started
+fr Aucune fenêtre n'a pu être lancée
+
+en Open with
+fr Ouvrir avec
+
+en Reading…
+fr Lecture…
+
+en No application
+fr Aucune application
+
+en %s (default)
+fr %s (par défaut)
+
+en Pages
+fr Pages
+
+en Show
+fr Afficher
+
+en Recent PDFs
+fr PDF récents
+
+en Open
+fr Ouvrir
+
+en Page %d of %d
+fr Page %d sur %d
+
+en Feuille %s, on gui_toolkit %s. %s
+fr Feuille %s, sur gui_toolkit %s. %s
+
+en The version is copied
+fr La version est copiée
+
+en Theme: %s
+fr Thème : %s
+
+en Comfortable rows
+fr Lignes confortables
+
+en Animations on
+fr Animations activées
+
+en Animations off
+fr Animations désactivées
+
+en Text size: %v
+fr Taille du texte : %v
+
+en The path is copied
+fr Le chemin est copié
+
+en Reopen the last PDF
+fr Rouvrir le dernier PDF
+
+en With no file given, Feuille opens the last PDF again, at the page and the zoom it showed.
+fr Sans fichier donné, Feuille rouvre le dernier PDF, à la page et au zoom qu'il affichait.
+
 en Form layer at open
 fr Couche formulaire à l'ouverture
 
@@ -180,12 +336,6 @@ fr La hauteur de la fenêtre à son premier lancement, en pixels logiques.
 
 en General
 fr Général
-
-en Appearance
-fr Apparence
-
-en Window
-fr Fenêtre
 
 en Scrolling
 fr Défilement
@@ -211,8 +361,8 @@ fr Ouverture de %s…
 en Back to the document
 fr Retour au document
 
-en Page %d of %d
-fr Page %d sur %d
+en Document tools
+fr Outils du document
 
 en %s · page %d selected
 fr %s · page %d sélectionnée
@@ -259,8 +409,8 @@ fr Mot de passe faux
 en Cancel
 fr Annuler
 
-en Open
-fr Ouvrir
-
 en Words
 fr Mots
+
+en Thumbnails
+fr Vignettes

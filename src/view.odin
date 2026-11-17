@@ -52,6 +52,9 @@ view_build :: proc(h: ^host.Host, size: host.Vec2) {
 		ui.next({width = ui.fill(), height = ui.fill(), axis = .Y})
 		page := ui.build_box({.Draw_Background}, "###page")
 		if ui.parent(page) { build_page(app, em, size) }
+		menus_build(app, em)
+		// (the install's dialog and the settings' Installation page; headless, nothing is read or offered)
+		install_follow(app)
 	}
 	send_asks(app)
 }
@@ -140,13 +143,14 @@ build_title :: proc(app: ^App, em: f32) {
 			if app.snapshot != nil { tool(app, .Save, em) }
 			tool(app, .Settings, em)
 		}
-		// (the system's title bar has its own close button)
-		if !app.settings.system_title {
+		// (the window's own buttons at its edge: minimise, maximise or restore, close, which asks as Quit does; the system's
+		// title bar has its own, and window_buttons draws nothing then)
+		if app.settings.system_title {
+			ui.space(ui.SPACE_2)
+		} else {
 			ui.space(ui.TOOL_GAP)
-			ui.next({width = ui.px(em * TOOL_EM), height = ui.px(em * TOOL_EM), radius = em * 0.4})
-			if ui.button("close", icon = lucide.X, o = {tip = ui.command_tip(ACTIONS[.Quit]), icon_font = ui.lucide_icons()}).clicked { leave_document(app, .Quit) }
+			ui.window_buttons()
 		}
-		ui.space(ui.SPACE_2)
 	}
 }
 
@@ -154,6 +158,7 @@ build_title :: proc(app: ^App, em: f32) {
 @(private = "file")
 build_tools :: proc(app: ^App, em: f32) {
 	ui.next({width = ui.fill(), height = ui.px(ui.dense(em * (TOOL_EM + 0.5)))})
+	ui.a11y({role = .Toolbar, name = i18n.tr("Document tools")})
 	if ui.row(.Center) {
 		ui.space(ui.SPACE_2)
 		tool(app, .Thumbnails, em)
@@ -185,6 +190,7 @@ build_tools :: proc(app: ^App, em: f32) {
 @(private = "file")
 build_status :: proc(app: ^App, em: f32) {
 	ui.next({width = ui.fill(), height = ui.px(ui.dense(em * STATUS_EM))})
+	ui.a11y({role = .Status, live = .Polite})
 	if ui.row(.Center) {
 		ui.space(ui.SPACE_3)
 		// (an update on offer, coming or in place: a button to act on it)
@@ -321,6 +327,7 @@ pages_view :: proc(app: ^App, window: host.Vec2) {
 	zoom := ui.zoom_zone(&app.zone, app.snapshot.path)
 	ui.next({width = ui.fill(), height = ui.fill(), axis = .Y})
 	box := ui.build_box({.Clip, .View_Scroll_X, .View_Scroll_Y, .View_Clamp_X, .View_Clamp_Y, .Allow_Overflow_X, .Allow_Overflow_Y}, "###pages")
+	if ui.a11y_wanted() { ui.a11y_set(box, {role = .Document, name = filepath.base(app.snapshot.path)}) }
 	_ = ui.signal(box)
 	if ui.parent(box) { pages_column(app, box, zoom, window) }
 }
@@ -347,10 +354,12 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 	if len(l.tops) == 0 { return }
 	if app.go_to >= 0 && app.go_to < len(l.tops) {
 		box.view_target.y = max(l.tops[app.go_to] - PAGE_MARGIN, 0)
+		if app.go_jump { box.view_off.y = box.view_target.y }
 	}
-	app.go_to = -1
+	app.go_to, app.go_jump = -1, false
 	top := box.view_off.y
 	app.current, _ = layout_at(l^, top + view.y / 2)
+	recent_page_keep(app)
 	first, last := layout_range(l^, top - view.y * VIEW_AHEAD, top + view.y * (1 + VIEW_AHEAD))
 	want_pictures(app, l, first, last, top + view.y / 2, false)
 	if first >= last { return }
@@ -376,7 +385,10 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 				ui.next({width = ui.px(size.x), height = ui.px(size.y)})
 				b := ui.custom(fmt.tprintf("###page%d", p.id), page_draw, d, {.Clickable})
 				if app.text_mode { b.cursor = .Text }
+				// (a screen reader's words for the page; made only for a build that sends the tree)
+				if ui.a11y_wanted() { ui.a11y_set(b, {role = .Image, name = fmt.tprintf(i18n.tr("Page %d of %d"), i + 1, len(s.pages)), selected = p.id == app.selected}) }
 				sig := ui.signal(b)
+				if sig.right_clicked { page_menu_open(app, p.id, i) }
 				if sig.clicked || sig.double_clicked {
 					app.selected, app.selected_at = p.id, i
 					at := [2]f32{sig.mouse.x / max(size.x, 1), sig.mouse.y / max(size.y, 1)}
@@ -447,6 +459,7 @@ thumb_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
 strip_view :: proc(app: ^App, em: f32, window: host.Vec2) {
 	ui.next({width = ui.px(em * STRIP_EM), height = ui.fill(), axis = .Y})
 	box := ui.build_box({.Clip, .View_Scroll_Y, .View_Clamp_Y, .Allow_Overflow_Y}, "###strip")
+	if ui.a11y_wanted() { ui.a11y_set(box, {role = .List, name = i18n.tr("Thumbnails")}) }
 	_ = ui.signal(box)
 	if ui.parent(box) { strip_column(app, box, em, window) }
 }
@@ -485,7 +498,10 @@ strip_column :: proc(app: ^App, box: ^ui.Box, em: f32, window: host.Vec2) {
 				shown.seen = app.frame
 			}
 			ui.next({width = ui.px(l.sizes[i].x), height = ui.px(l.sizes[i].y)})
-			sig := ui.signal(ui.custom(fmt.tprintf("###thumb%d", p.id), thumb_draw, d, {.Clickable}))
+			tb := ui.custom(fmt.tprintf("###thumb%d", p.id), thumb_draw, d, {.Clickable})
+			if ui.a11y_wanted() { ui.a11y_set(tb, {role = .List_Item, name = fmt.tprintf(i18n.tr("Page %d of %d"), i + 1, len(s.pages)), selected = p.id == app.selected, position = i + 1, set_size = len(s.pages)}) }
+			sig := ui.signal(tb)
+			if sig.right_clicked { page_menu_open(app, p.id, i) }
 			if sig.dragging && app.drag_id == 0 && abs(sig.drag_delta.y) > DRAG_START_PX * ui.scale() {
 				app.drag_id, app.drop_at = p.id, i
 			}
