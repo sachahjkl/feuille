@@ -18,7 +18,8 @@ One small native program, written in [Odin](https://odin-lang.org) on
 
 ## Status
 
-In development: [ROADMAP.md](ROADMAP.md) gives the plan, [src/md](src/md/README.md) the design.
+In development. It opens and reads a PDF with its form layer hidden ([docs/usage.md](docs/usage.md)); the page edits
+come next. [ROADMAP.md](ROADMAP.md) gives the plan, [src/md](src/md/README.md) the design.
 
 ## Build
 

@@ -86,6 +86,85 @@
       pdfium
     ];
 
+    # APP_VERSION of src/main.odin
+    version = let
+      line = lib.findFirst (lib.hasPrefix "APP_VERSION ::") "" (lib.splitString "\n" (builtins.readFile ./src/main.odin));
+    in
+      builtins.head (builtins.match ''APP_VERSION +:: "([^"]+)".*'' line);
+
+    # feuille, built from this tree as a release is: feuilletool build release.
+    feuille = pkgs.stdenv.mkDerivation {
+      pname = "feuille";
+      inherit version;
+      src = lib.fileset.toSource {
+        root = ./.;
+        fileset = lib.fileset.difference ./. (lib.fileset.maybeMissing ./build);
+      };
+      # the crates of the toolkit's text library, vendored: cargo makes no request
+      cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./ext/gui_toolkit/native/gt/Cargo.lock;};
+
+      nativeBuildInputs = [odin pkgs.cargo pkgs.rustc pkgs.clang pkgs.lld pkgs.autoPatchelfHook pkgs.copyDesktopItems];
+      buildInputs = [pkgs.fontconfig pkgs.freetype pkgs.stdenv.cc.cc.lib];
+      # what it opens with dlopen (PDFium among them) goes in its RUNPATH; the Vulkan driver is the system's
+      runtimeDependencies = runtime;
+      # Odin links a foreign library as -l:<absolute path> with -L/, which the purity check of the linker wrapper drops
+      NIX_ENFORCE_PURITY = 0;
+
+      configurePhase = ''
+        runHook preConfigure
+        export HOME="$TMPDIR"
+        mkdir -p "$HOME/.cargo"
+        cat > "$HOME/.cargo/config.toml" <<EOF
+        [source.crates-io]
+        replace-with = "vendored-sources"
+        [source.vendored-sources]
+        directory = "$cargoDeps"
+        EOF
+        export CARGO_NET_OFFLINE=true
+        runHook postConfigure
+      '';
+
+      buildPhase = ''
+        runHook preBuild
+        mkdir -p build
+        odin run tools/feuilletool -collection:gt=ext/gui_toolkit/src -out:build/feuilletool -- build release
+        runHook postBuild
+      '';
+
+      desktopItems = [
+        (pkgs.makeDesktopItem {
+          name = "feuille";
+          desktopName = "Feuille";
+          genericName = "PDF Reader";
+          comment = "Open a PDF at once, arrange its pages, change its words.";
+          exec = "feuille %f";
+          icon = "feuille";
+          categories = ["Office" "Viewer"];
+          mimeTypes = ["application/pdf"];
+          keywords = ["pdf" "reader" "pages" "form"];
+          startupWMClass = "feuille";
+        })
+      ];
+
+      installPhase = ''
+        runHook preInstall
+        install -Dm755 build/feuille $out/bin/feuille
+        for size in 16 32 64 128 256; do
+          install -Dm644 assets/logo_$size.png "$out/share/icons/hicolor/''${size}x''${size}/apps/feuille.png"
+        done
+        install -Dm644 -t $out/share/doc/feuille LICENSE README.md CHANGELOG.md
+        install -Dm644 ext/gui_toolkit/src/lucide/LICENSE.txt $out/share/doc/feuille/LUCIDE-LICENSE.txt
+        runHook postInstall
+      '';
+
+      meta = {
+        description = "Open a PDF at once, arrange its pages, change its words.";
+        license = lib.licenses.mit;
+        platforms = [system];
+        mainProgram = "feuille";
+      };
+    };
+
     preCommitCheck = git-hooks.lib.${system}.run {
       package = pkgs.prek;
       src = ./.;
@@ -96,10 +175,17 @@
       };
     };
   in {
-    packages.${system} = {inherit odin pdfium;};
+    packages.${system} = {
+      inherit feuille odin pdfium;
+      default = feuille;
+    };
+    apps.${system}.default = {
+      type = "app";
+      program = "${feuille}/bin/feuille";
+    };
     checks.${system} = {
       pre-commit = preCommitCheck;
-      inherit pdfium;
+      inherit feuille pdfium;
     };
     formatter.${system} = pkgs.alejandra;
 

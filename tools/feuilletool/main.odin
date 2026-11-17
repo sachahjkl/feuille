@@ -11,18 +11,27 @@ import changelog "gt:changelog"
 import toolbox "gt:toolbox"
 
 REPOSITORY :: "https://github.com/sachahjkl/feuille"
+when ODIN_OS == .Windows {
+	PROGRAM :: "build/feuille.exe"
+} else {
+	PROGRAM :: "build/feuille"
+}
 
 project :: proc() -> toolbox.Project {
 	return {
 		name = "feuille", repository = REPOSITORY, changelog = "CHANGELOG.md",
+		version_file = "src/main.odin", version_line = "APP_VERSION :: ", program = PROGRAM,
 		title = "Feuille", description = "Open a PDF at once, arrange its pages, change its words.",
 		publisher = "Froment Software", copyright = "Copyright (c) 2026 sachahjkl",
+		// (only the icons feuille names are compiled in)
+		features = {.Lucide_Subset},
 	}
 }
 
 commands :: proc() -> []toolbox.Command {
+	b := toolbox.build_commands(build_options())
 	list := make([dynamic]toolbox.Command, context.temp_allocator)
-	append(&list, changelog.command(project()), toolbox.logo_command(logo()))
+	append(&list, b[0], b[1], b[2], changelog.command(project()), toolbox.logo_command(logo()))
 	return list[:]
 }
 
