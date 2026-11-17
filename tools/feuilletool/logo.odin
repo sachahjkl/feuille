@@ -19,12 +19,12 @@ LOGO_ICO       :: "assets/feuille.ico"
 LOGO_UNITS     :: 512.0
 // The least width a size is drawn at before the toolbox shrinks it.
 LOGO_DRAW_SIZE :: 512
+// The room left between the mark and the square's edge, on its widest side, in units.
+LOGO_MARGIN    :: 10.0
 
-// The flight: the leaf narrowed across, turned, and placed in the square.
+// The flight: the leaf narrowed across and turned; logo_draw then fits it to the square.
 FLIGHT_NARROW :: 0.92
-FLIGHT_SIZE   :: 1.16
 FLIGHT_TURN   :: -20.0
-FLIGHT_AT     :: [2]f32{282, 304}
 
 // The colours: the golden tip, the orange middle, the red base, the crease's shade, the veins, the stem.
 LEAF_TIP    :: 0xFFC53D
@@ -145,14 +145,29 @@ logo_draw :: proc(pixels, size: int) -> paint.Canvas {
 	detail := detail_for(size)
 	c := paint.canvas_make(pixels, pixels)
 	k := f32(pixels) / LOGO_UNITS
-	c.transform = paint.scale(paint.IDENTITY, k, k)
 
 	// the leaf's frame placed in the square: narrowed, turned, moved (a call's step applies before the steps already in
 	// the matrix, so they are written last step first)
-	flight := paint.translate(paint.IDENTITY, FLIGHT_AT.x, FLIGHT_AT.y)
-	flight = paint.rotate_at(flight, FLIGHT_TURN, 0, 0)
-	flight = paint.scale(flight, FLIGHT_NARROW * FLIGHT_SIZE, FLIGHT_SIZE)
+	flight := paint.rotate_at(paint.IDENTITY, FLIGHT_TURN, 0, 0)
+	flight = paint.scale(flight, FLIGHT_NARROW, 1)
 	place :: proc(m: paint.Matrix, p: [2]f32) -> [2]f32 { return paint.apply(m, p) }
+
+	// the whole mark as large as the square holds, LOGO_MARGIN from its widest side: a taskbar or a dock shows an icon
+	// in a fixed square, and a mark that leaves it empty around looks smaller than its neighbours
+	lo, hi := [2]f32{max(f32), max(f32)}, [2]f32{min(f32), min(f32)}
+	grow :: proc(lo, hi: ^[2]f32, p: [2]f32, r: f32 = 0) {
+		lo^ = {min(lo.x, p.x - r), min(lo.y, p.y - r)}
+		hi^ = {max(hi.x, p.x + r), max(hi.y, p.y + r)}
+	}
+	for p in outline() { grow(&lo, &hi, place(flight, p.at)) }
+	stem_width: f32 = detail == 0 ? 20 : 14
+	for p in ([3][2]f32{{0, 0}, {-4, 70}, {22, 128}}) { grow(&lo, &hi, place(flight, p), stem_width / 2) }
+	fit := (LOGO_UNITS - 2 * LOGO_MARGIN) / max(hi.x - lo.x, hi.y - lo.y)
+	centre := (lo + hi) * 0.5
+	c.transform = paint.scale(paint.IDENTITY, k, k)
+	c.transform = paint.translate(c.transform, LOGO_UNITS / 2, LOGO_UNITS / 2)
+	c.transform = paint.scale(c.transform, fit, fit)
+	c.transform = paint.translate(c.transform, -centre.x, -centre.y)
 
 	// the stem, behind the leaf: a slight curve down from the join
 	stem: paint.Path
@@ -160,7 +175,7 @@ logo_draw :: proc(pixels, size: int) -> paint.Canvas {
 	paint.move_to(&stem, 0, 0)
 	paint.quad_to(&stem, -4, 70, 22, 128)
 	paint.path_transform(&stem, flight)
-	paint.stroke(&c, stem, {width = detail == 0 ? 20 : 14, cap = .Round}, paint.solid(paint.hex(STEM)))
+	paint.stroke(&c, stem, {width = stem_width, cap = .Round}, paint.solid(paint.hex(STEM)))
 
 	// the leaf, warm from its tip to its base
 	leaf: paint.Path
