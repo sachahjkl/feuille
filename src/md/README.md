@@ -34,7 +34,7 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
 - PDFium is not thread-safe: one worker thread makes every engine call. The binding checks it in debug builds.
 - A page keeps its identity through reorders and inserts: the cache keys on it, so a move re-renders nothing.
 - Rotation is the page's own `/Rotate`: what is shown is what is saved.
-- The tests make their PDFs with a small writer (`src/pdf/fixture_test.odin`): no binary file in the repository.
+- The tests make their PDFs with a small writer (`src/fixture`): no binary file in the repository.
 
 ## File Index
 

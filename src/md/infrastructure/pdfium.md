@@ -17,6 +17,13 @@ Refused:
 that never opens a PDF starts without the library, and `pdf.init` says it is missing. The binding is thin: the C handles
 as distinct types, no wrapper objects.
 
+Facts of the pinned engine that shaped the binding (each found by a test):
+
+- `FPDF_REVERSE_BYTE_ORDER` and `FPDFBitmap_FillRect` stop the process (a trap in the AGG renderer). `render` fills
+  the paper itself, renders BGRx, then swaps the bytes to RGBA.
+- `FPDF_LoadMemDocument64` reads the bytes for as long as the document is open: `Document` owns them.
+- `FPDF_RenderPageBitmap` never draws form widgets; `FPDF_FFLDraw` does (masked-opening.md).
+
 ## The worker
 
 One `gt:tasks` pool of one thread owns the engine (`src/worker.odin`). PDFium has global state and is not thread-safe:
@@ -29,6 +36,6 @@ open first (it makes the rest moot), then edits, then saves, then renders. A ren
 
 ## The fixtures
 
-The tests' writer (`src/pdf/fixture_test.odin`) writes the objects, the streams, the cross-reference table, and the
+The tests' writer (`src/fixture`) writes the objects, the streams, the cross-reference table, and the
 standard security handler's RC4 40-bit encryption. The public API cannot make an encrypted file or a widget's
 appearance, so the writer does; the fixture is exactly what the test claims, and no binary file enters the repository.

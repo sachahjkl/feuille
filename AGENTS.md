@@ -31,7 +31,7 @@ Every step is a command of `tools/feuilletool` (`help` lists them):
   program needs goes in gui_toolkit, generic, with its docs, test and changelog fragment; feuille then points to the
   toolkit's new commit.
 - A preference is a `config.Def` in `src/settings.odin` with its line in `docs/configuration.md`.
-- Tests never read or write the person's files or desktop: the tests make their PDFs (`src/pdf/fixture_test.odin`),
+- Tests never read or write the person's files or desktop: the tests make their PDFs (`src/fixture`),
   and the window is headless.
 - Automation is a command of `tools/feuilletool`, never a shell, batch, PowerShell, Python or Node script.
 - Comments and commit messages are in English. Comments say why.

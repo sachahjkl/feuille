@@ -10,9 +10,12 @@ nothing else, so nothing can block.
 
 - The render passes no annotation flag: PDFium draws no annotation, no form widget, no signature appearance. The file is
   not changed; the layer is only not drawn.
-- No form environment (`FPDFDoc_InitFormFillEnvironment`) is ever made: no field focus, no validation, no form
-  JavaScript. Nothing interactive exists in the process.
-- A toggle shows the layer (the appearances, drawn as pictures, still not interactive). It asks for new pictures only.
+- While the layer is hidden, no form environment (`FPDFDOC_InitFormFillEnvironment`) exists: no field focus, no
+  validation, no form JavaScript.
+- A toggle shows the layer. The engine draws the annotations with `FPDF_ANNOT`, but it draws form widgets (fields,
+  signatures) only through `FPDF_FFLDraw`, which needs a form environment. So the first render with the layer shown
+  makes one, for drawing only: it never receives an event, its callbacks are all empty, and the pinned engine has no
+  JavaScript. The layer is a picture, never interactive. The toggle asks for new pictures only.
 - A protected file: the load fails with the password error; the window shows a password field over the empty view, the
   worker loads again with it. A wrong password says so and keeps the field. Cancel returns to the state before.
 - A saved copy drops the encryption and the restrictions (`FPDF_REMOVE_SECURITY`).
