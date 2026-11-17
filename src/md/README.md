@@ -46,5 +46,5 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
   security, the day-one test
 - [features/page-edits.md](features/page-edits.md): turn, add, remove, reorder, undo, the saved copy
 - [features/text-editing.md](features/text-editing.md): what "supported" means, the edit, its limits
-- [infrastructure/pdfium.md](infrastructure/pdfium.md): the engine choice, the refused alternatives, the binding, the
-  worker
+- [infrastructure/pdfium.md](infrastructure/pdfium.md): the engine choice, the refused alternatives, hayro
+  measured against PDFium, the binding, the worker

@@ -1,0 +1,12 @@
+[package]
+name = "hayro-bench"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "feuilletool bench's hayro side: each page of a PDF rendered by hayro, timed, as raw RGBA"
+
+[dependencies]
+hayro = "=0.9.0"
+
+[profile.release]
+debug = false

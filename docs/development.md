@@ -27,6 +27,7 @@ odin run tools/feuilletool -collection:gt=ext/gui_toolkit/src -out:build/feuille
 | `check` | the changelog and the roadmap, the scopes, `odin check -vet` for this system, Windows and macOS and of the tool, the tests, a release build |
 | `changelog new <type> <text>`, `check`, `preview` | a fragment of `changelog.d/`, their check, what the next version brings |
 | `logo` | `assets/logo*.png`, `assets/feuille.ico` and `.project/image.png`, drawn by the toolkit's paint package |
+| `bench` | PDFium and hayro (`tools/bench/hayro`, needs cargo) on a pinned corpus of hard PDFs: `build/bench/report.md`, Linux only |
 
 `build`, `test` and `check` are gui_toolkit's (`toolbox.build_commands`). `GT=<folder>` builds against another checkout
 of gui_toolkit.

@@ -68,6 +68,7 @@ commands :: proc() -> []toolbox.Command {
 		b[0], b[1], b[2],
 		toolbox.Command{name = "shots", usage = "[--out folder]: the pictures of the README and the site, the program's own frames, headless", run = run_shots},
 		toolbox.logo_command(logo()),
+		toolbox.Command{name = "bench", usage = ": PDFium and hayro on a pinned corpus of hard PDFs, compared; build/bench/report.md (Linux)", run = run_bench},
 		r[0], r[1], r[2],
 		toolbox.Command{name = "update", usage = "keygen <file> | pubkey | manifest <program> <version> - <out> | verify <manifest> -: feuille's update key and manifests", run = proc(args: []string) -> cli.Exit { return toolbox.update_command(feuille_update.PRODUCT, args) }},
 		changelog.command(p),

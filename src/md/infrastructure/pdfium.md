@@ -11,6 +11,25 @@ Refused:
 - Poppler: GPL, and a heavy chain of dependencies (GLib or Qt).
 - A PDF renderer of our own: years of work.
 
+### hayro, measured
+
+hayro (0.9, pure Rust, render only) was the one serious rival. `feuilletool bench` renders a pinned corpus with both:
+37 files of pdf.js's test suite and of feuille's fixtures (forms, broken files, Type 3 and CID fonts, shadings, blend
+modes, CCITT, CMYK, encrypted). Its report goes to `build/bench/report.md`. Results:
+
+- hayro opens 36 of 37 files. It never panics and fails no page. It refuses an AES-256 file whose encryption covers
+  only its attachments (`/StmF /Identity`, `/EFF /StdCF`).
+- Its pictures equal PDFium's to the eye on every page compared. The measured gap (up to 8 % of pixels on dense text)
+  is anti-aliasing of glyph edges and hairlines.
+- It renders the corpus about 2.8 times faster: 369 ms against 1023 ms.
+
+PDFium stays. hayro only reads: it cannot turn, remove, import or move a page, change a text block, or save. A
+split engine (hayro draws, PDFium edits) is refused: two parsers of one document can disagree on what a page holds,
+and the picture would then show what the save does not write.
+
+hayro becomes the better choice for a program that only shows PDFs (classeur's preview): no shared library to ship,
+no global state to fence on one thread. That choice belongs to `gt:pdf` (ROADMAP.md, Later).
+
 ## The binding
 
 `src/pdf`: the C declarations feuille uses, loaded at run time (`load_linux.odin`: dlopen; `load_windows.odin`:
