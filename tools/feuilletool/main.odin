@@ -22,7 +22,7 @@ project :: proc() -> toolbox.Project {
 
 commands :: proc() -> []toolbox.Command {
 	list := make([dynamic]toolbox.Command, context.temp_allocator)
-	append(&list, changelog.command(project()))
+	append(&list, changelog.command(project()), toolbox.logo_command(logo()))
 	return list[:]
 }
 
