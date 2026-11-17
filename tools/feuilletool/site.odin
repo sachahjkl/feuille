@@ -29,8 +29,7 @@ site_meta :: proc() -> tk_site.Meta {
 }
 
 // The shop: feuille's licence (src/licence), sold through Paddle by the toolkit's licence Worker. A licence supports the
-// program; everything is in the one version without it. What is empty is filled once the shop is set up
-// (gui_toolkit docs/licence.md): until the client token and the price id are there, the button says "Coming soon".
+// program; everything is in the one version without it (gui_toolkit docs/licence.md).
 SHOP :: tk_site.Shop{
 	name           = "Feuille",
 	icon           = "../img/logo.png",
@@ -38,9 +37,9 @@ SHOP :: tk_site.Shop{
 	price          = "15&nbsp;&euro;",
 	price_note     = "",
 	environment    = "production",
-	client_token   = "",
+	client_token   = "live_c259720f641c0ca14629c9d1543",   // Paddle's client-side token (public: it is in the page)
 	edition        = "supporter",
-	price_id       = "",
+	price_id       = "pri_01m7mjektq8b49e041ppps7tv3",
 	worker         = "https://feuille-licence.sacha-42a.workers.dev",
 	thanks         = "https://feuille.froment.software/thanks/",
 	help           = REPOSITORY + "/issues/new",
