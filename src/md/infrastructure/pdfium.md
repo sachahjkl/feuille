@@ -13,8 +13,15 @@ Refused:
 
 ## The binding
 
-`src/pdf`: the C declarations feuille uses, loaded with dlopen (`pdf_linux.odin`), as gt:ocr loads Tesseract. A program
-that never opens a PDF starts without the library, and `pdf.init` says it is missing. The binding is thin: the C handles
+`src/pdf`: the C declarations feuille uses, loaded at run time (`load_linux.odin`: dlopen; `load_windows.odin`:
+LoadLibraryW), as gt:ocr loads Tesseract. A program that never opens a PDF starts without the library, and `pdf.init`
+says it is missing.
+
+The library goes beside the program: a release's archive carries `libpdfium.so` or `pdfium.dll`, and the loader looks
+in the program's own folder first (Windows does so by itself; Linux reads /proc/self/exe), then on the system's path.
+`feuilletool` puts it in `build/` before each build and test (its `prepare`): from `$PDFIUM_LIB` (the flake's, as Nix's
+sandbox has no network), else the pinned archive of pdfium-binaries checked by its SHA-256. Refused: linking it at build
+time (a program that could not start without it), and asking each person to install it (no distribution packages it). The binding is thin: the C handles
 as distinct types, no wrapper objects.
 
 Facts of the pinned engine that shaped the binding (each found by a test):

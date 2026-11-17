@@ -1,8 +1,8 @@
 #+build !linux
+#+build !windows
 package pdf
 
-// The other systems' loader comes with the Windows layer of the roadmap (LoadLibrary and GetProcAddress fill the same
-// table). Until then init says the engine is missing.
+// macOS has no loader yet: init says the engine is missing, and the program says so.
 
 @(private)
 load_library :: proc(a: ^Api) -> bool { return false }

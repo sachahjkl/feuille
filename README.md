@@ -28,13 +28,13 @@ never waits. Turning, adding, removing and reordering pages, and changing a text
 
 One small native program, written in [Odin](https://odin-lang.org) on
 [gui_toolkit](https://github.com/sachahjkl/gui_toolkit), with Chromium's PDF engine,
-[PDFium](https://pdfium.googlesource.com/pdfium/). Linux first; Windows later.
+[PDFium](https://pdfium.googlesource.com/pdfium/). Windows and Linux.
 
 ## Install
 
+- Windows 10 and 11, Linux: the archive of a [release](https://github.com/sachahjkl/feuille/releases), PDFium beside
+  the program. Unpack it and start it.
 - Nix: `nix run github:sachahjkl/feuille -- file.pdf`, or `nix profile add github:sachahjkl/feuille`.
-- The archive of a [release](https://github.com/sachahjkl/feuille/releases): it needs `libpdfium.so` of
-  [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) on the library path.
 
 [docs/usage.md](docs/usage.md) says how to use it, [docs/configuration.md](docs/configuration.md) its settings,
 [docs/development.md](docs/development.md) how to build it, [src/md](src/md/README.md) how it is designed.

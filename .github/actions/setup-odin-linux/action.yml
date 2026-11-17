@@ -1,5 +1,5 @@
 name: Odin on Linux
-description: Odin dev-2026-11a (pinned by SHA-256) on the PATH with wgpu-native's static library in its vendor folder, clang, the libraries the program links (fontconfig), PDFium on the library path, and Mesa's software Vulkan for the tests' frames
+description: Odin dev-2026-11a (pinned by SHA-256) on the PATH with wgpu-native's static library in its vendor folder, clang, the libraries the program links (fontconfig), and Mesa's software Vulkan for the tests' frames
 
 runs:
   using: composite
@@ -11,18 +11,6 @@ runs:
         SUDO="$(command -v sudo || true)"
         $SUDO apt-get update -qq
         $SUDO apt-get install -y -qq clang lld libfontconfig-dev unzip mesa-vulkan-drivers libvulkan1
-
-    # (the engine the program opens with dlopen, the flake's version, pinned by SHA-256)
-    - name: PDFium chromium/8152
-      shell: bash
-      env:
-        PDFIUM_SHA256: 384ab5c51882408a143a21f9c14dcd2caf1f75280ae41c554d0489b46c3dba9f
-      run: |
-        archive="$RUNNER_TEMP/pdfium-linux-x64.tgz"
-        curl -fsSL --retry 3 --retry-delay 10 --retry-all-errors -o "$archive" "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8152/pdfium-linux-x64.tgz"
-        echo "$PDFIUM_SHA256  $archive" | sha256sum -c -
-        mkdir -p "$RUNNER_TEMP/pdfium" && tar -xzf "$archive" -C "$RUNNER_TEMP/pdfium"
-        echo "LD_LIBRARY_PATH=$RUNNER_TEMP/pdfium/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
 
     # (the archive kept between runs, keyed by this file, which names the version: GitHub's release downloads may not answer for
     # an hour, a 504 at each try. Its SHA-256 is checked below, whether it came from the cache or the download)

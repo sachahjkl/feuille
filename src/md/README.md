@@ -7,7 +7,7 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
 
 ## Overview
 
-- Odin on gui_toolkit (collection `gt`). Linux first; Windows later, through the toolkit.
+- Odin on gui_toolkit (collection `gt`), for Windows and Linux.
 - PDFium does the PDF work, through a thin binding opened with dlopen (`src/pdf`).
 - Two sides, one direction each:
   - The document worker owns the engine and the open document. It loads, renders, edits and saves. Nothing else calls

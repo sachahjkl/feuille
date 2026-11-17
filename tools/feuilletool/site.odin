@@ -11,12 +11,13 @@ VERSION_MARK :: "{{version}}"
 
 @(rodata)
 SITE_DOWNLOADS := [?]tk_site.Download{
+	{os = "windows", label = "Windows", href = "https://github.com/sachahjkl/feuille/releases/download/v{{version}}/feuille-{{version}}-windows-x64.zip", detail = "v{{version}} · Windows 10 / 11 · x64 · .zip"},
 	{os = "linux", label = "Linux", href = "https://github.com/sachahjkl/feuille/releases/download/v{{version}}/feuille-{{version}}-linux-x64.tar.gz", detail = "v{{version}} · x64 · .tar.gz"},
 }
 
 SITE_LD :: [?][2]string{
 	{"applicationCategory", "BusinessApplication"},
-	{"operatingSystem", "Linux"},
+	{"operatingSystem", "Windows, Linux"},
 	{"license", "https://opensource.org/license/mit"},
 }
 
@@ -48,7 +49,7 @@ SHOP :: tk_site.Shop{
 	repository     = REPOSITORY,
 	seller         = tk_site.SELLER_FROMENT,
 	code_licence   = "MIT License",
-	platform       = "Linux, x64.",
+	platform       = "Windows 10 or 11, x64, and Linux, x64.",
 	network        = tk_site.NETWORK_UPDATES_ONLY,
 	stylesheet     = "../style.css",
 	home           = "../",

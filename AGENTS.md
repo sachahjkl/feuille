@@ -1,7 +1,7 @@
 # feuille
 
-A PDF reader and page editor, in Odin, on the `ext/gui_toolkit` submodule (collection `gt`). Linux first (Wayland and
-X11); Windows later, through the toolkit. It opens a document without its interactive layer (signatures, annotations,
+A PDF reader and page editor, in Odin, on the `ext/gui_toolkit` submodule (collection `gt`), for Windows and Linux
+(Wayland and X11). It opens a document without its interactive layer (signatures, annotations,
 form fields), arranges its pages, edits its words, and saves a copy. One version, everything in it.
 
 Read first: [README.md](README.md), [src/md/README.md](src/md/README.md) (the intent), [ROADMAP.md](ROADMAP.md),

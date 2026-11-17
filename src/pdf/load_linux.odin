@@ -1,39 +1,56 @@
 #+build linux
 package pdf
 
-// libpdfium.so with dlopen: the flake's PDFium is on LD_LIBRARY_PATH in the development shell and in the package's
-// wrapper. The handle is never closed: the engine lives as long as the process.
+// libpdfium.so with dlopen: the one beside the program first (a release's archive carries it), then the system's library
+// path (the flake's shell and package). The handle is never closed: the engine lives as long as the process.
 
+import "core:path/filepath"
+import "core:strings"
 import "core:sys/posix"
 
 @(private)
 load_library :: proc(a: ^Api) -> bool {
-	h := posix.dlopen("libpdfium.so", posix.RTLD_LOCAL + {.NOW})
-	if h == nil { return false }
-	a.init_library = auto_cast posix.dlsym(h, "FPDF_InitLibrary")
-	a.get_last_error = auto_cast posix.dlsym(h, "FPDF_GetLastError")
-	a.load_mem_document64 = auto_cast posix.dlsym(h, "FPDF_LoadMemDocument64")
-	a.close_document = auto_cast posix.dlsym(h, "FPDF_CloseDocument")
-	a.get_page_count = auto_cast posix.dlsym(h, "FPDF_GetPageCount")
-	a.get_page_size_by_index_f = auto_cast posix.dlsym(h, "FPDF_GetPageSizeByIndexF")
-	a.load_page = auto_cast posix.dlsym(h, "FPDF_LoadPage")
-	a.close_page = auto_cast posix.dlsym(h, "FPDF_ClosePage")
-	a.page_get_rotation = auto_cast posix.dlsym(h, "FPDFPage_GetRotation")
-	a.bitmap_create_ex = auto_cast posix.dlsym(h, "FPDFBitmap_CreateEx")
-	a.bitmap_destroy = auto_cast posix.dlsym(h, "FPDFBitmap_Destroy")
-	a.render_page_bitmap = auto_cast posix.dlsym(h, "FPDF_RenderPageBitmap")
-	a.save_as_copy = auto_cast posix.dlsym(h, "FPDF_SaveAsCopy")
-	a.init_form = auto_cast posix.dlsym(h, "FPDFDOC_InitFormFillEnvironment")
-	a.exit_form = auto_cast posix.dlsym(h, "FPDFDOC_ExitFormFillEnvironment")
-	a.ffl_draw = auto_cast posix.dlsym(h, "FPDF_FFLDraw")
-	if a.init_library == nil || a.get_last_error == nil || a.load_mem_document64 == nil || a.close_document == nil ||
-	   a.get_page_count == nil || a.get_page_size_by_index_f == nil || a.load_page == nil || a.close_page == nil ||
-	   a.page_get_rotation == nil || a.bitmap_create_ex == nil || a.bitmap_destroy == nil || a.render_page_bitmap == nil || a.save_as_copy == nil ||
-	   a.init_form == nil || a.exit_form == nil || a.ffl_draw == nil {
-		// (an older library without one of them: as if there were none)
+	for name in library_candidates() {
+		h := posix.dlopen(name, posix.RTLD_LOCAL + {.NOW})
+		if h == nil { continue }
+		if fill(a, h) { return true }
 		posix.dlclose(h)
 		a^ = {}
-		return false
 	}
-	return true
+	return false
+}
+
+// The library beside the executable (its real path: /proc/self/exe), then the bare name for the system's search.
+@(private = "file")
+library_candidates :: proc() -> []cstring {
+	out := make([dynamic]cstring, context.temp_allocator)
+	buf: [4096]u8
+	if n := posix.readlink("/proc/self/exe", raw_data(buf[:]), len(buf) - 1); n > 0 {
+		dir := filepath.dir(string(buf[:n]))
+		append(&out, strings.clone_to_cstring(strings.concatenate({dir, "/libpdfium.so"}, context.temp_allocator), context.temp_allocator))
+	}
+	append(&out, "libpdfium.so")
+	return out[:]
+}
+
+@(private = "file")
+fill :: proc(a: ^Api, h: posix.Symbol_Table) -> bool {
+	sym :: proc(h: posix.Symbol_Table, name: cstring) -> rawptr { return posix.dlsym(h, name) }
+	a.init_library = auto_cast sym(h, "FPDF_InitLibrary")
+	a.get_last_error = auto_cast sym(h, "FPDF_GetLastError")
+	a.load_mem_document64 = auto_cast sym(h, "FPDF_LoadMemDocument64")
+	a.close_document = auto_cast sym(h, "FPDF_CloseDocument")
+	a.get_page_count = auto_cast sym(h, "FPDF_GetPageCount")
+	a.get_page_size_by_index_f = auto_cast sym(h, "FPDF_GetPageSizeByIndexF")
+	a.load_page = auto_cast sym(h, "FPDF_LoadPage")
+	a.close_page = auto_cast sym(h, "FPDF_ClosePage")
+	a.page_get_rotation = auto_cast sym(h, "FPDFPage_GetRotation")
+	a.bitmap_create_ex = auto_cast sym(h, "FPDFBitmap_CreateEx")
+	a.bitmap_destroy = auto_cast sym(h, "FPDFBitmap_Destroy")
+	a.render_page_bitmap = auto_cast sym(h, "FPDF_RenderPageBitmap")
+	a.save_as_copy = auto_cast sym(h, "FPDF_SaveAsCopy")
+	a.init_form = auto_cast sym(h, "FPDFDOC_InitFormFillEnvironment")
+	a.exit_form = auto_cast sym(h, "FPDFDOC_ExitFormFillEnvironment")
+	a.ffl_draw = auto_cast sym(h, "FPDF_FFLDraw")
+	return api_complete(a^)
 }

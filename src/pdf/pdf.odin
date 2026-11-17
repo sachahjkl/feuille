@@ -87,6 +87,15 @@ Api :: struct {
 	ffl_draw:              proc "c" (form: Form_Handle, bitmap: Bitmap_Handle, page: Page_Handle, start_x, start_y, size_x, size_y, rotate, flags: c.int),
 }
 
+// Whether every procedure was found: a library without one of them (an older build) counts as none.
+@(private)
+api_complete :: proc(a: Api) -> bool {
+	a := a
+	words := transmute([size_of(Api) / size_of(rawptr)]rawptr)a
+	for w in words { if w == nil { return false } }
+	return true
+}
+
 @(private) api:       Api
 @(private) api_once:  sync.Once
 @(private) api_found: bool

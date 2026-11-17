@@ -7,6 +7,9 @@
 
 ## Next
 
+- **A test bench of engines.** Hard real PDFs (forms, signatures, encrypted, damaged) rendered by PDFium and by hayro,
+  a renderer in pure Rust, their pictures and failures compared; hayro becomes a backend of the toolkit if it holds.
+
 - **Text editing.** Change the words of a text block in the PDFs whose fonts allow it.
   [Text editing](src/md/features/text-editing.md).
 - **Thumbnails.** A strip of the pages beside the document, to move through it and drag pages into a new order.
@@ -18,5 +21,4 @@
 - **Text selection and search.** Select, copy and find the text of a page.
 - **Print.** The system's print dialog, the pages rendered at the printer's resolution.
 - **Extract.** Save the chosen pages as a new PDF.
-- **Windows.** The engine's loader for Windows, the console launcher and the installer.
 - **The engine in the toolkit.** `gt:pdf` when a second program (classeur's preview) needs it.

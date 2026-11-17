@@ -41,11 +41,18 @@ LICENCE_TOOL :: toolbox.Licence_Tool{
 	paddle   = {name = "Feuille User License", description = "A personal, perpetual licence of Feuille, the PDF reader that nothing blocks.", amounts = "supporter=1500", currency = "EUR"},
 }
 
-// What goes beside the program in a release's archive: the file, and its name there.
+// What goes beside the program in a release's archive: the file, and its name there. PDFium goes with it: the program
+// loads it from its own folder (pdfium.odin).
+when ODIN_OS == .Windows {
+	PDFIUM_FILE :: "pdfium.dll"
+} else {
+	PDFIUM_FILE :: "libpdfium.so"
+}
 @(rodata)
 RELEASE_FILES := [?][2]string{
 	{"README.md", "README.md"}, {"LICENSE", "LICENSE"}, {"CHANGELOG.md", "CHANGELOG.md"},
 	{"ext/gui_toolkit/src/lucide/LICENSE.txt", "LUCIDE-LICENSE.txt"},
+	{PDFIUM_LIBRARY, PDFIUM_FILE}, {PDFIUM_LICENCE, "PDFIUM-LICENSE.txt"},
 }
 
 // feuille's texts, from its code, into i18n/<language>.txt (the program embeds them: src/app.odin).

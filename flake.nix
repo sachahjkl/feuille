@@ -110,6 +110,9 @@
       # Odin links a foreign library as -l:<absolute path> with -L/, which the purity check of the linker wrapper drops
       NIX_ENFORCE_PURITY = 0;
 
+      # (feuilletool puts PDFium beside the program from there: Nix's sandbox has no network for the pinned archive)
+      PDFIUM_LIB = "${pdfium}/lib/libpdfium.so";
+
       configurePhase = ''
         runHook preConfigure
         export HOME="$TMPDIR"
@@ -197,6 +200,7 @@
         preCommitCheck.shellHook
         + ''
           export LD_LIBRARY_PATH=${lib.makeLibraryPath runtime}
+          export PDFIUM_LIB=${pdfium}/lib/libpdfium.so
         '';
     };
   };
