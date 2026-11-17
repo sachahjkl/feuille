@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feuille: open a PDF at once, arrange its pages, change its words</title>
+<meta name="description" content="Open a PDF at once, arrange its pages, change its words.">
+<link rel="icon" href="img/logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="#"><img src="img/logo.png" alt="" width="28" height="28"><span>Feuille</span></a>
+  <button class="burger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav"><span></span></button>
+  <!-- site-nav -->
+</header>
+
+<main>
+  <section class="hero">
+    <img class="mark" src="img/logo.png" alt="Feuille logo" width="112" height="112">
+    <h1>Feuille</h1>
+    <p class="lead">Open a PDF at once, arrange its pages, change its words.</p>
+    <div class="actions">
+      <!-- download -->
+      <a class="btn" href="https://github.com/sachahjkl/feuille">Source on GitHub</a>
+    </div>
+    <p class="small"><!-- download-others --> &nbsp;·&nbsp; With Nix: <code>nix profile add github:sachahjkl/feuille</code> &nbsp;·&nbsp; MIT</p>
+  </section>
+
+  <figure class="shot wide">
+    <a class="frame" href="img/main.png"><img src="img/main.png" alt="Feuille's window: an application form, its fields and its signature box hidden" loading="lazy"></a>
+    <figcaption>A form as it opens: the page's own content, nothing on it to block you.</figcaption>
+  </figure>
+
+  <section id="features" class="grid">
+    <article class="card">
+      <h3>Nothing blocks the page</h3>
+      <p>Signatures, annotations and form fields are not drawn when a PDF opens, and nothing on the page takes the
+        keyboard or asks for input. The document that froze another reader reads here at once.</p>
+    </article>
+    <article class="card">
+      <h3>The layer when you want it</h3>
+      <p>Ctrl+L draws the fields, the signatures and the notes over the pages, as a picture. The file itself is never
+        changed by opening it.</p>
+    </article>
+    <article class="card">
+      <h3>Protected files</h3>
+      <p>A PDF with a password asks for it in the window. A copy saved from it has no password and no restriction.</p>
+    </article>
+    <article class="card">
+      <h3>Fast on long documents</h3>
+      <p>Only the pages near the view are drawn, on a thread of their own: a document of a thousand pages scrolls as one
+        of ten, and the window never waits.</p>
+    </article>
+    <article class="card">
+      <h3>Pages and words <span class="dim">(coming)</span></h3>
+      <p>Turn, add, remove and reorder pages; change the words of a text block. One version, everything in it.</p>
+    </article>
+    <article class="card">
+      <h3>Keyboard first</h3>
+      <p>Ctrl+K finds every command and setting; F1 lists the keys; every key can be changed.</p>
+    </article>
+  </section>
+
+  <!-- whats-new -->
+
+  <section class="gallery">
+    <figure class="shot"><a class="frame" href="img/layer.png"><img src="img/layer.png" alt="The same form with its fields, signature box and note drawn" loading="lazy"></a><figcaption>The form layer, on demand</figcaption></figure>
+    <figure class="shot"><a class="frame" href="img/palette.png"><img src="img/palette.png" alt="The command palette" loading="lazy"></a><figcaption>Every command at Ctrl+K</figcaption></figure>
+    <figure class="shot"><a class="frame" href="img/light.png"><img src="img/light.png" alt="Feuille in its light theme" loading="lazy"></a><figcaption>Feuille light</figcaption></figure>
+  </section>
+
+  <section id="download" class="download">
+    <h2>Download</h2>
+    <div class="cols">
+      <div class="well">
+        <h3>Linux</h3>
+        <p>One program for Linux x64, Wayland or X11. It needs Vulkan, fontconfig and PDFium's library
+          (<code>libpdfium.so</code>, from <a href="https://github.com/bblanchon/pdfium-binaries">pdfium-binaries</a>).</p>
+        <code><a href="https://github.com/sachahjkl/feuille/releases/download/v{{version}}/feuille-{{version}}-linux-x64.tar.gz">feuille-{{version}}-linux-x64.tar.gz</a></code>
+      </div>
+      <div class="well">
+        <h3>Nix</h3>
+        <p>The flake builds Feuille from source with everything it needs, PDFium included:
+          <code>nix run github:sachahjkl/feuille</code>, or add <code>packages.x86_64-linux.default</code> to your configuration.</p>
+        <code>nix profile add github:sachahjkl/feuille</code>
+      </div>
+      <div class="well">
+        <h3>Windows</h3>
+        <p>Coming: the program runs on Windows through its toolkit; the PDF engine's loader comes next.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- site-footer -->
+<script>
+  // the bar's menu on narrow screens: the button opens it, a link or a click elsewhere closes it
+  const bar = document.querySelector('.bar'), burger = bar.querySelector('.burger');
+  const shut = () => { bar.classList.remove('open'); burger.setAttribute('aria-expanded', 'false'); };
+  burger.addEventListener('click', e => { e.stopPropagation(); burger.setAttribute('aria-expanded', String(bar.classList.toggle('open'))); });
+  bar.querySelectorAll('nav a').forEach(a => a.addEventListener('click', shut));
+  document.addEventListener('click', e => { if (!bar.contains(e.target)) shut(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') shut(); });
+</script>
+<script src="gallery.js" defer></script>
+</body>
+</html>

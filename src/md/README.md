@@ -40,6 +40,8 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
 
 - [data/snapshot.md](data/snapshot.md): the page list the interface reads, page identities, revisions, the layout
 - [features/viewer.md](features/viewer.md): the column of pages, zoom, the visible pages, the picture cache
+- [features/window.md](features/window.md): the toolkit's settings, palette, theme, licence and updates around the
+  document; the README's pictures
 - [features/masked-opening.md](features/masked-opening.md): why the layer is hidden, the password, the copy without
   security, the day-one test
 - [features/page-edits.md](features/page-edits.md): turn, add, remove, reorder, undo, the saved copy

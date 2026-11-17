@@ -28,13 +28,13 @@ SIGNATURE_RECT :: [4]f32{20, 60, 140, 30}    // green, the signature's appearanc
 NOTE_RECT      :: [4]f32{170, 170, 20, 20}   // the text annotation
 
 // The standard padding of the security handler.
-@(private = "file")
+@(private)
 PAD :: [32]u8{
 	0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41, 0x64, 0x00, 0x4E, 0x56, 0xFF, 0xFA, 0x01, 0x08,
 	0x2E, 0x2E, 0x00, 0xB6, 0xD0, 0x68, 0x3E, 0x80, 0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A,
 }
 
-@(private = "file")
+@(private)
 ID :: "feuille-fixture!"
 
 // The document, in `allocator`.
@@ -84,7 +84,7 @@ make_pdf :: proc(o: Options, allocator := context.allocator) -> []u8 {
 	return w.buf[:]
 }
 
-@(private = "file")
+@(private)
 Writer :: struct {
 	buf:       [dynamic]u8,
 	offsets:   [dynamic]int,   // by object number; 0 unused
@@ -92,16 +92,16 @@ Writer :: struct {
 	file_key:  [5]u8,
 }
 
-@(private = "file")
+@(private)
 text :: proc(w: ^Writer, s: string) { append(&w.buf, s) }
 
-@(private = "file")
+@(private)
 object :: proc(w: ^Writer, n: int, body: string) {
 	mark(w, n)
 	text(w, fmt.tprintf("%d 0 obj\n%s\nendobj\n", n, body))
 }
 
-@(private = "file")
+@(private)
 stream :: proc(w: ^Writer, n: int, dict: string, data: string) {
 	mark(w, n)
 	bytes := crypt(w, n, transmute([]u8)data)
@@ -110,32 +110,32 @@ stream :: proc(w: ^Writer, n: int, dict: string, data: string) {
 	text(w, "\nendstream\nendobj\n")
 }
 
-@(private = "file")
+@(private)
 mark :: proc(w: ^Writer, n: int) {
 	for len(w.offsets) <= n { append(&w.offsets, 0) }
 	w.offsets[n] = len(w.buf)
 }
 
 // A string of object `n`, as the file writes it (hex; encrypted when the file is).
-@(private = "file")
+@(private)
 literal :: proc(w: ^Writer, n: int, s: string) -> string {
 	return fmt.tprintf("<%s>", hex(crypt(w, n, transmute([]u8)s)))
 }
 
-@(private = "file")
+@(private)
 rect :: proc(r: [4]f32) -> string { return fmt.tprintf("[%v %v %v %v]", r[0], r[1], r[0] + r[2], r[1] + r[3]) }
 
-@(private = "file")
+@(private)
 rect_box :: proc(r: [4]f32) -> string { return fmt.tprintf("%v %v %v %v", r[0], r[1], r[2], r[3]) }
 
-@(private = "file")
+@(private)
 hex :: proc(data: []u8) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	for v in data { fmt.sbprintf(&b, "%02x", v) }
 	return strings.to_string(b)
 }
 
-@(private = "file")
+@(private)
 md5_of :: proc(parts: ..[]u8) -> (sum: [16]u8) {
 	ctx: md5.Context
 	md5.init(&ctx)
@@ -144,7 +144,7 @@ md5_of :: proc(parts: ..[]u8) -> (sum: [16]u8) {
 	return
 }
 
-@(private = "file")
+@(private)
 rc4 :: proc(key, data: []u8) -> []u8 {
 	s: [256]u8
 	for i in 0 ..< 256 { s[i] = u8(i) }
@@ -166,7 +166,7 @@ rc4 :: proc(key, data: []u8) -> []u8 {
 
 // The bytes of object `n` as the file stores them: the object's key is the file key and the object's number, hashed
 // (the handler's algorithm 1, revision 2: 5 + 5 bytes).
-@(private = "file")
+@(private)
 crypt :: proc(w: ^Writer, n: int, data: []u8) -> []u8 {
 	if !w.encrypted { return data }
 	tail := [5]u8{u8(n), u8(n >> 8), u8(n >> 16), 0, 0}
@@ -176,7 +176,7 @@ crypt :: proc(w: ^Writer, n: int, data: []u8) -> []u8 {
 
 // /O, /U and the file key of revision 2, with no owner password and /P -4 (algorithms 2, 3 and 4). With no owner
 // password, algorithm 3 takes the user's in its place.
-@(private = "file")
+@(private)
 keys :: proc(password: string) -> (o, u: [32]u8, file_key: [5]u8) {
 	padded :: proc(s: string) -> (out: [32]u8) {
 		out = PAD

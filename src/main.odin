@@ -3,6 +3,7 @@ package feuille
 
 import "core:fmt"
 import "core:os"
+import "core:strings"
 import "gt:cli"
 import host "gt:host"
 import "gt:platform"
@@ -16,21 +17,31 @@ main :: proc() {
 	cli.exit(run(os.args[1:]))
 }
 
-USAGE :: `feuille [file.pdf]: open a PDF, its signatures, annotations and form fields hidden
-feuille version: the version`
+USAGE :: `feuille [file.pdf] [--pref name=value]...
+  Opens a PDF with its signatures, annotations and form fields hidden.
+feuille version   the version`
 
 run :: proc(args: []string) -> cli.Exit {
 	path := ""
-	for a in args {
-		switch a {
-		case "version", "--version":
+	prefs := make([dynamic]string, context.temp_allocator)
+	for i := 0; i < len(args); i += 1 {
+		a := args[i]
+		switch {
+		case a == "version" || a == "--version":
 			fmt.println(APP_VERSION)
 			return .Done
-		case "help", "-h", "--help":
+		case a == "help" || a == "-h" || a == "--help":
 			fmt.println(USAGE)
 			return .Done
+		case a == "--pref" && i + 1 < len(args):
+			i += 1
+			append(&prefs, "--pref", args[i])
+			continue
+		case strings.has_prefix(a, "--pref="):
+			append(&prefs, a)
+			continue
 		}
-		if path != "" {
+		if path != "" || strings.has_prefix(a, "-") {
 			fmt.eprintln(USAGE)
 			return .Usage
 		}
@@ -43,16 +54,16 @@ run :: proc(args: []string) -> cli.Exit {
 	context.logger = p.logger
 	defer host.program_end(&p)
 
-	app := app_open({path = path})
+	app := app_open({path = path, pref_args = prefs[:], last_crash = p.last_crash})
 	if app == nil {
 		fmt.eprintln("feuille: no window could be opened")
 		return .Failed
 	}
-	defer app_close(app)
 	platform.show_window(app.main.win)
-	for !platform.is_closed(app.main.win) {
+	for !app.quit && !platform.is_closed(app.main.win) {
 		host.hosts_wait({&app.main})
-		host.host_frame(&app.main)
+		app_step(app)
 	}
+	app_close(app)
 	return .Done
 }

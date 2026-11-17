@@ -1,0 +1,60 @@
+name: CI
+
+# Every push to main and every pull request: feuilletool check (the changelog and the roadmap, odin check -vet of the
+# program for Linux, Windows and macOS and of the tool, the tests with their headless frames, a release build), in the
+# flake's shell, as on a developer's machine. The program is kept as an artifact.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      # (the toolkit's text library: cargo's target directory, keyed by its sources)
+      - uses: actions/cache@v4
+        with:
+          path: ext/gui_toolkit/build/native
+          key: native-linux-nix-${{ hashFiles('ext/gui_toolkit/native/**', 'flake.lock') }}
+
+      # (Vulkan's drivers are in /run/opengl-driver on NixOS: here, Mesa's software one from the flake's nixpkgs)
+      - name: lavapipe
+        run: |
+          mesa="$(nix build --no-link --print-out-paths --inputs-from . nixpkgs#mesa | head -1)"
+          echo "VK_DRIVER_FILES=$(find "$mesa" -name 'lvp_icd*.json' | head -1)" >> "$GITHUB_ENV"
+
+      - name: feuilletool check
+        run: |
+          nix develop --command sh -c '
+            set -e
+            mkdir -p build
+            odin build tools/feuilletool -collection:gt=ext/gui_toolkit/src -out:build/feuilletool -vet
+            build/feuilletool check
+          '
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: feuille-linux-x64-${{ github.sha }}
+          path: |
+            build/feuille
+            build/session/**
+          if-no-files-found: warn

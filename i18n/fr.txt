@@ -1,0 +1,158 @@
+# The texts in fr (docs/i18n.md). Written by the i18n command: a translation left empty is the English.
+language fr
+
+en Open a PDF…
+fr Ouvrir un PDF…
+
+en Document
+fr Document
+
+en Show the form layer
+fr Afficher la couche formulaire
+
+en Zoom in
+fr Zoom avant
+
+en View
+fr Affichage
+
+en Zoom out
+fr Zoom arrière
+
+en Fit the width
+fr Ajuster à la largeur
+
+en First page
+fr Première page
+
+en Last page
+fr Dernière page
+
+en Settings
+fr Réglages
+
+en Feuille
+fr Feuille
+
+en Check for updates
+fr Chercher les mises à jour
+
+en Keyboard shortcuts
+fr Raccourcis clavier
+
+en Restart Feuille
+fr Redémarrer Feuille
+
+en Quit Feuille
+fr Quitter Feuille
+
+en Open a PDF
+fr Ouvrir un PDF
+
+en Feuille's keys
+fr Les touches de Feuille
+
+en The preferences cannot be written
+fr Les préférences ne peuvent pas être écrites
+
+en %s cannot be opened: %s
+fr %s ne peut pas être ouvert : %s
+
+en Form layer at open
+fr Couche formulaire à l'ouverture
+
+en Draw the signatures, annotations and form fields when a PDF opens. Off: only the pages' own content is drawn, and nothing on the page can block it; Ctrl+L shows the layer for one document.
+fr Dessiner les signatures, les annotations et les champs de formulaire à l'ouverture d'un PDF. Désactivé : seul le contenu propre des pages est dessiné, et rien sur la page ne peut la bloquer ; Ctrl+L affiche la couche pour un document.
+
+en Width
+fr Largeur
+
+en The window's width at its first start, in logical pixels.
+fr La largeur de la fenêtre à son premier lancement, en pixels logiques.
+
+en Height
+fr Hauteur
+
+en The window's height at its first start, in logical pixels.
+fr La hauteur de la fenêtre à son premier lancement, en pixels logiques.
+
+en General
+fr Général
+
+en Appearance
+fr Apparence
+
+en Window
+fr Fenêtre
+
+en Scrolling
+fr Défilement
+
+en Input
+fr Saisie
+
+en Delays and menus
+fr Délais et menus
+
+en Keys
+fr Touches
+
+en Updates
+fr Mises à jour
+
+en Rendering
+fr Rendu
+
+en Opening %s…
+fr Ouverture de %s…
+
+en Back to the document
+fr Retour au document
+
+en Page %d of %d
+fr Page %d sur %d
+
+en form layer hidden
+fr couche formulaire masquée
+
+en Commands
+fr Commandes
+
+en Drop a file here, or press Ctrl+O. Signatures, annotations and form fields stay hidden.
+fr Déposez un fichier ici, ou appuyez sur Ctrl+O. Les signatures, les annotations et les champs de formulaire restent masqués.
+
+en %s cannot be opened
+fr %s ne peut pas être ouvert
+
+en The file cannot be read.
+fr Le fichier ne peut pas être lu.
+
+en It is not a PDF, or it is damaged.
+fr Ce n'est pas un PDF, ou il est endommagé.
+
+en Its protection is of a kind this program does not know.
+fr Sa protection est d'un type que ce programme ne connaît pas.
+
+en The password is wrong.
+fr Le mot de passe est faux.
+
+en The PDF engine (libpdfium) is not installed.
+fr Le moteur PDF (libpdfium) n'est pas installé.
+
+en The PDF engine refused it.
+fr Le moteur PDF l'a refusé.
+
+en %s is protected
+fr %s est protégé
+
+en Password
+fr Mot de passe
+
+en Wrong password
+fr Mot de passe faux
+
+en Cancel
+fr Annuler
+
+en Open
+fr Ouvrir

@@ -1,0 +1,68 @@
+name: Release
+
+# A version tag vX.Y.Z (feuilletool ship makes it) builds feuille and publishes it: the Linux archive with its SHA-256,
+# the program alone and its update manifest signed by the secret UPDATE_SIGNING_KEY, on a GitHub release whose notes are
+# the changelog's section of that version. The tag must be APP_VERSION's (feuilletool package checks). Windows joins
+# when the engine's loader for it comes (ROADMAP.md).
+on:
+  push:
+    tags: ['v*']
+  # (by hand: the archive built and kept as an artifact, nothing published, to try the workflow on a branch)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Built in Debian 12 (glibc 2.36): the archive starts on Debian 12, Ubuntu 22.04 and later.
+  release:
+    runs-on: ubuntu-24.04
+    container: debian:bookworm
+    timeout-minutes: 40
+    steps:
+      - name: git, curl, the GitHub CLI, Rust
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq git ca-certificates curl jq gh binutils xz-utils >/dev/null
+          git config --global --add safe.directory '*'
+          curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable >/dev/null
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/setup-odin-linux
+
+      - name: Build and test
+        run: |
+          odin build tools/feuilletool -collection:gt=ext/gui_toolkit/src -out:build/feuilletool -vet
+          build/feuilletool check
+
+      - name: Package
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: build/feuilletool package ${{ github.ref_name }}
+
+      - name: Package (a try, unsigned)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: build/feuilletool package
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: feuille-linux-x64-try
+          path: build/dist/*
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build/feuilletool notes ${{ github.ref_name }} > build/notes.md
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            gh release upload "${{ github.ref_name }}" build/dist/* --clobber
+          else
+            gh release create "${{ github.ref_name }}" build/dist/* --title "feuille ${GITHUB_REF_NAME#v}" --notes-file build/notes.md
+          fi
