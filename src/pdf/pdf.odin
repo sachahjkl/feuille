@@ -14,6 +14,9 @@ Document_Handle :: distinct rawptr
 Page_Handle     :: distinct rawptr
 Bitmap_Handle   :: distinct rawptr
 Form_Handle     :: distinct rawptr
+Text_Page_Handle :: distinct rawptr
+Object_Handle   :: distinct rawptr
+Font_Handle     :: distinct rawptr
 
 // FPDF_FORMFILLINFO, version 1, with every callback empty: the form environment exists to draw the widgets, nothing
 // else (src/md/features/masked-opening.md). The C struct is a version and a row of callbacks; the room left is more
@@ -85,6 +88,72 @@ Api :: struct {
 	init_form:             proc "c" (doc: Document_Handle, info: ^Form_Info) -> Form_Handle,
 	exit_form:             proc "c" (form: Form_Handle),
 	ffl_draw:              proc "c" (form: Form_Handle, bitmap: Bitmap_Handle, page: Page_Handle, start_x, start_y, size_x, size_y, rotate, flags: c.int),
+	// the edits (edit.odin)
+	page_set_rotation:     proc "c" (page: Page_Handle, rotate: c.int),
+	page_delete:           proc "c" (doc: Document_Handle, index: c.int),
+	page_new:              proc "c" (doc: Document_Handle, index: c.int, width, height: f64) -> Page_Handle,
+	import_pages_by_index: proc "c" (dest, src: Document_Handle, indices: [^]c.int, length: c.ulong, index: c.int) -> c.int,
+	move_pages:            proc "c" (doc: Document_Handle, indices: [^]c.int, length: c.ulong, dest_index: c.int) -> c.int,
+	create_new_document:   proc "c" () -> Document_Handle,
+	device_to_page:        proc "c" (page: Page_Handle, start_x, start_y, size_x, size_y, rotate, device_x, device_y: c.int, page_x, page_y: ^f64) -> c.int,
+	page_to_device:        proc "c" (page: Page_Handle, start_x, start_y, size_x, size_y, rotate: c.int, page_x, page_y: f64, device_x, device_y: ^c.int) -> c.int,
+	text_load_page:        proc "c" (page: Page_Handle) -> Text_Page_Handle,
+	text_close_page:       proc "c" (text: Text_Page_Handle),
+	text_char_at_pos:      proc "c" (text: Text_Page_Handle, x, y, x_tolerance, y_tolerance: f64) -> c.int,
+	text_object_of_char:   proc "c" (text: Text_Page_Handle, index: c.int) -> Object_Handle,
+	text_object_text:      proc "c" (object: Object_Handle, text: Text_Page_Handle, buffer: [^]u16, length: c.ulong) -> c.ulong,
+	object_bounds:         proc "c" (object: Object_Handle, left, bottom, right, top: ^f32) -> c.int,
+	text_set_text:         proc "c" (object: Object_Handle, text: [^]u16) -> c.int,
+	page_generate_content: proc "c" (page: Page_Handle) -> c.int,
+	text_object_font:      proc "c" (object: Object_Handle) -> Font_Handle,
+	font_base_name:        proc "c" (font: Font_Handle, buffer: [^]u8, length: c.size_t) -> c.size_t,
+	page_count_objects:    proc "c" (page: Page_Handle) -> c.int,
+	page_get_object:       proc "c" (page: Page_Handle, index: c.int) -> Object_Handle,
+	object_type:           proc "c" (object: Object_Handle) -> c.int,
+}
+
+// Fills the table by the library's names, `sym` being the system's lookup (dlsym, GetProcAddress) on handle `h`; true
+// when every one was found.
+@(private)
+api_fill :: proc(a: ^Api, h: rawptr, sym: proc(h: rawptr, name: cstring) -> rawptr) -> bool {
+	a.init_library = auto_cast sym(h, "FPDF_InitLibrary")
+	a.get_last_error = auto_cast sym(h, "FPDF_GetLastError")
+	a.load_mem_document64 = auto_cast sym(h, "FPDF_LoadMemDocument64")
+	a.close_document = auto_cast sym(h, "FPDF_CloseDocument")
+	a.get_page_count = auto_cast sym(h, "FPDF_GetPageCount")
+	a.get_page_size_by_index_f = auto_cast sym(h, "FPDF_GetPageSizeByIndexF")
+	a.load_page = auto_cast sym(h, "FPDF_LoadPage")
+	a.close_page = auto_cast sym(h, "FPDF_ClosePage")
+	a.page_get_rotation = auto_cast sym(h, "FPDFPage_GetRotation")
+	a.bitmap_create_ex = auto_cast sym(h, "FPDFBitmap_CreateEx")
+	a.bitmap_destroy = auto_cast sym(h, "FPDFBitmap_Destroy")
+	a.render_page_bitmap = auto_cast sym(h, "FPDF_RenderPageBitmap")
+	a.save_as_copy = auto_cast sym(h, "FPDF_SaveAsCopy")
+	a.init_form = auto_cast sym(h, "FPDFDOC_InitFormFillEnvironment")
+	a.exit_form = auto_cast sym(h, "FPDFDOC_ExitFormFillEnvironment")
+	a.ffl_draw = auto_cast sym(h, "FPDF_FFLDraw")
+	a.page_set_rotation = auto_cast sym(h, "FPDFPage_SetRotation")
+	a.page_delete = auto_cast sym(h, "FPDFPage_Delete")
+	a.page_new = auto_cast sym(h, "FPDFPage_New")
+	a.import_pages_by_index = auto_cast sym(h, "FPDF_ImportPagesByIndex")
+	a.move_pages = auto_cast sym(h, "FPDF_MovePages")
+	a.create_new_document = auto_cast sym(h, "FPDF_CreateNewDocument")
+	a.device_to_page = auto_cast sym(h, "FPDF_DeviceToPage")
+	a.page_to_device = auto_cast sym(h, "FPDF_PageToDevice")
+	a.text_load_page = auto_cast sym(h, "FPDFText_LoadPage")
+	a.text_close_page = auto_cast sym(h, "FPDFText_ClosePage")
+	a.text_char_at_pos = auto_cast sym(h, "FPDFText_GetCharIndexAtPos")
+	a.text_object_of_char = auto_cast sym(h, "FPDFText_GetTextObject")
+	a.text_object_text = auto_cast sym(h, "FPDFTextObj_GetText")
+	a.object_bounds = auto_cast sym(h, "FPDFPageObj_GetBounds")
+	a.text_set_text = auto_cast sym(h, "FPDFText_SetText")
+	a.page_generate_content = auto_cast sym(h, "FPDFPage_GenerateContent")
+	a.text_object_font = auto_cast sym(h, "FPDFTextObj_GetFont")
+	a.font_base_name = auto_cast sym(h, "FPDFFont_GetBaseFontName")
+	a.page_count_objects = auto_cast sym(h, "FPDFPage_CountObjects")
+	a.page_get_object = auto_cast sym(h, "FPDFPage_GetObject")
+	a.object_type = auto_cast sym(h, "FPDFPageObj_GetType")
+	return api_complete(a^)
 }
 
 // Whether every procedure was found: a library without one of them (an older build) counts as none.
