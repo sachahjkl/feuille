@@ -28,7 +28,8 @@ run :: proc(args: []string) -> cli.Exit {
 		a := args[i]
 		switch {
 		case a == "version" || a == "--version":
-			fmt.println(APP_VERSION)
+			// (the program's name and its version: what the toolkit's console launcher check expects)
+			fmt.println(APP_NAME, APP_VERSION)
 			return .Done
 		case a == "help" || a == "-h" || a == "--help":
 			fmt.println(USAGE)
