@@ -183,7 +183,7 @@ app_open :: proc(o: App_Options) -> ^App {
 	ui.views_set_windows(&app.views, host.view_windows(h.shared))
 	ui.keymap_known(&app.keymap, slice.enumerated_array(&ACTIONS))
 	ui.keymap_use(&h.state, &app.keymap)
-	app.announcer = {mode = app.settings.messages, window = h.win, state = &h.state}
+	app.announcer = {mode = announce_mode(app), window = h.win, state = &h.state}
 	prefs_page.standard_watch(&app.standard, &app.prefs, &h.state, {renderer = &app.shared.r, fonts = &app.shared.fonts, partial_redraw = &h.partial_redraw, pacer = &h.pacer, keymap = &app.keymap})
 	h.state.icon_font = ui.lucide_icons()
 	h.params = app_params
@@ -295,6 +295,12 @@ app_params :: proc(h: ^host.Host, bp: ^ui.Build_Params) {
 		h.background = ui.theme_lookup(&app.shared.theme, {}, "background")
 	}
 	bp.base = ui.Style{pref = {.X = ui.text_size(), .Y = ui.px(28)}, font = app.shared.font, font_size = app.settings.look.font_size, text_pad = 6, cursor = .Arrow}
+}
+
+// Where "Saved" and its kin are said: the settings' choice; a headless window (the tests) keeps them in itself, never
+// on the person's desktop.
+announce_mode :: proc(app: ^App) -> ui.Announce_Mode {
+	return app.headless ? .Window : app.settings.messages
 }
 
 // window.system_title: the system's title bar, or feuille's own, switched at once.

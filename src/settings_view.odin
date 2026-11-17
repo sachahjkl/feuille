@@ -62,6 +62,6 @@ settings_changed :: proc(user: rawptr, name: string) {
 	app := (^App)(user)
 	settings_free(&app.settings)
 	app.settings = prefs_read(&app.prefs)
-	app.announcer.mode = app.settings.messages
+	app.announcer.mode = announce_mode(app)
 	app_title_follow(app)
 }
