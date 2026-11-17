@@ -29,14 +29,7 @@ shot_start :: proc(t: ^testing.T, path: string, prefs: []string = nil) -> (s: ^s
 }
 
 @(private = "file")
-drawn :: proc(s: ^session.Session, app: ^App) -> bool {
-	if app.snapshot == nil || len(app.last_ask) == 0 { return false }
-	for a in app.last_ask {
-		shown, ok := app.pictures[a.id]
-		if !ok || shown.size != a.size || shown.layer != a.layer { return false }
-	}
-	return true
-}
+drawn :: proc(s: ^session.Session, app: ^App) -> bool { return pictures_ready(s, app) }
 
 @(private = "file")
 save :: proc(s: ^session.Session, name: string) {

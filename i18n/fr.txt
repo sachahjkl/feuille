@@ -7,20 +7,71 @@ fr Ouvrir un PDF…
 en Document
 fr Document
 
+en Save a copy…
+fr Enregistrer une copie…
+
+en Save this page as a PDF…
+fr Enregistrer cette page en PDF…
+
+en Undo
+fr Annuler
+
+en Edit
+fr Édition
+
+en Redo
+fr Rétablir
+
+en Turn the page right
+fr Tourner la page à droite
+
+en Page
+fr Page
+
+en Turn the page left
+fr Tourner la page à gauche
+
+en Remove the page
+fr Supprimer la page
+
+en Add a blank page after
+fr Ajouter une page blanche après
+
+en Add the pages of a PDF after…
+fr Ajouter les pages d'un PDF après…
+
+en Move the page up
+fr Monter la page
+
+en Move the page down
+fr Descendre la page
+
+en Edit a text block (click it)
+fr Modifier un bloc de texte (cliquez dessus)
+
 en Show the form layer
 fr Afficher la couche formulaire
 
-en Zoom in
-fr Zoom avant
-
 en View
 fr Affichage
+
+en Show the thumbnails
+fr Afficher les vignettes
+
+en Zoom in
+fr Zoom avant
 
 en Zoom out
 fr Zoom arrière
 
 en Fit the width
 fr Ajuster à la largeur
+
+en Previous page
+fr Page précédente
+
+en Next page
+fr Page suivante
 
 en First page
 fr Première page
@@ -46,14 +97,65 @@ fr Redémarrer Feuille
 en Quit Feuille
 fr Quitter Feuille
 
-en Open a PDF
-fr Ouvrir un PDF
+en Save a copy
+fr Enregistrer une copie
+
+en edited
+fr modifié
+
+en Save this page as a PDF
+fr Enregistrer cette page en PDF
+
+en page %d
+fr page %d
+
+en Add the pages of a PDF
+fr Ajouter les pages d'un PDF
+
+en Click a text block to change its words; Escape leaves
+fr Cliquez sur un bloc de texte pour changer ses mots ; Échap pour sortir
 
 en Feuille's keys
 fr Les touches de Feuille
 
+en Replace the original?
+fr Remplacer l'original ?
+
+en The file opened is written over with the edited document. A copy beside it keeps the original.
+fr Le fichier ouvert est remplacé par le document modifié. Une copie à côté garde l'original.
+
+en Replace
+fr Remplacer
+
+en Leave the edits unsaved?
+fr Abandonner les modifications ?
+
+en The changes made to this document since it was opened or saved are lost. Save a copy first to keep them.
+fr Les changements faits à ce document depuis son ouverture ou son enregistrement sont perdus. Enregistrez d'abord une copie pour les garder.
+
+en Leave them
+fr Abandonner
+
+en Open a PDF
+fr Ouvrir un PDF
+
 en The preferences cannot be written
 fr Les préférences ne peuvent pas être écrites
+
+en %s cannot be written
+fr %s ne peut pas être écrit
+
+en Saved the page as %s
+fr Page enregistrée sous %s
+
+en Saved %s
+fr %s enregistré
+
+en No text there: a picture or drawn letters cannot be edited
+fr Pas de texte ici : une image ou des lettres dessinées ne se modifient pas
+
+en This text's font holds only the letters the document used: a new letter may not show
+fr La police de ce texte ne contient que les lettres utilisées par le document : une nouvelle lettre peut ne pas s'afficher
 
 en %s cannot be opened: %s
 fr %s ne peut pas être ouvert : %s
@@ -112,6 +214,9 @@ fr Retour au document
 en Page %d of %d
 fr Page %d sur %d
 
+en %s · page %d selected
+fr %s · page %d sélectionnée
+
 en form layer hidden
 fr couche formulaire masquée
 
@@ -156,3 +261,6 @@ fr Annuler
 
 en Open
 fr Ouvrir
+
+en Words
+fr Mots

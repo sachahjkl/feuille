@@ -37,10 +37,24 @@ Pending :: enum u8 {
 // A page's picture on screen, by page identity: the newest one rendered, whatever its size (a stale one stays drawn
 // until its replacement comes).
 Shown :: struct {
-	tex:   render.Texture,
-	size:  [2]int,
-	layer: bool,
-	seen:  u64,   // the frame it was last drawn in
+	tex:     render.Texture,
+	size:    [2]int,
+	layer:   bool,
+	version: u64,   // the page's content version it shows
+	seen:    u64,   // the frame it was last drawn in
+}
+
+// A text block being edited: the window's field over it (src/md/features/text-editing.md). Its states: none; asked
+// (a click sent the worker to look under it); open (the field over the block); then committed or cancelled.
+Text_Edit :: struct {
+	asked:  bool,
+	open:   bool,
+	id:     u64,       // the page
+	object: int,       // the text object on it
+	box:    [4]f32,    // shares of the page shown
+	before: string,    // its words when opened (owned): a commit of the same words changes nothing
+	field:  ui.Line_Edit,
+	focus:  bool,      // the next build gives the field the keyboard
 }
 
 App :: struct {
@@ -99,6 +113,31 @@ App :: struct {
 	current:       int,           // the page at the middle of the view, as the last build found it
 	pictures:      map[u64]Shown,
 	last_ask:      [dynamic]Render_Ask,
+	frame_asks:    [dynamic]Render_Ask,   // the pictures this frame wants (send_asks)
+	selected:      u64,           // the page the edits act on (0: none)
+	selected_at:   int,           // its index, as the last snapshot said (the next page is selected when it goes)
+	thumbs_shown:  bool,
+	thumbs:        map[u64]Shown, // the strip's pictures, by page
+	thumb_layout:  Layout,
+	drag_id:       u64,           // a thumbnail dragged (0: none)
+	drop_at:       int,           // where it would go, an index
+	text_mode:     bool,          // a click on a page picks a text block
+	text:          Text_Edit,
+
+	// what waits for an answer of a confirmation
+	leave_next:    Leave_Next,
+	leave_path:    string,        // the file to open once the edits are left (owned)
+	overwrite:     string,        // the original a save writes over, once confirmed (owned)
+}
+
+// The selected page's index in the snapshot (-1: none).
+selected_index :: proc(app: ^App) -> int {
+	s := app.snapshot
+	if s == nil { return -1 }
+	// (the index the snapshot gave first: a pass over the pages only when it moved)
+	if i := app.selected_at; i >= 0 && i < len(s.pages) && s.pages[i].id == app.selected { return i }
+	for p, i in s.pages { if p.id == app.selected { return i } }
+	return -1
 }
 
 App_Options :: struct {
@@ -149,7 +188,8 @@ app_open :: proc(o: App_Options) -> ^App {
 	h.state.icon_font = ui.lucide_icons()
 	h.params = app_params
 	h.input = app_input
-	h.close_asked = proc(h: ^host.Host) { (^App)(h.user).quit = true }
+	// (an edited document asks first: the window stays until the answer)
+	h.close_asked = proc(h: ^host.Host) { leave_document((^App)(h.user), .Quit) }
 	licence_init(app)
 	if !o.headless {
 		ui.set_file_dialogs(&h.state, .System)
@@ -168,8 +208,11 @@ app_open :: proc(o: App_Options) -> ^App {
 	}
 	palette_init(app)
 	app.pictures = make(map[u64]Shown)
+	app.thumbs = make(map[u64]Shown)
+	app.thumbs_shown = true
 	app.last_ask = make([dynamic]Render_Ask)
-	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture})
+	app.frame_asks = make([dynamic]Render_Ask)
+	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture, saved = on_saved, text = on_text})
 	if o.path != "" { app_open_file(app, o.path, "") }
 	return app
 }
@@ -193,6 +236,7 @@ app_close :: proc(app: ^App) {
 	prefs_page.updates_stop(&app.updates)
 	devtools.stop(app.devtools)
 	pictures_clear(app)   // (before the renderer goes: the textures are its)
+	thumbs_clear(app)
 	// (a dialog's answer comes to the window's state: the chores end before it does)
 	ui.chores_stop()
 	prefs_page.changelog_destroy(&app.changelog)
@@ -211,9 +255,16 @@ app_close :: proc(app: ^App) {
 @(private = "file")
 app_free :: proc(app: ^App) {
 	delete(app.pictures)
+	delete(app.thumbs)
 	delete(app.last_ask)
+	delete(app.frame_asks)
 	snapshot_free(app.snapshot)
 	layout_destroy(&app.layout)
+	layout_destroy(&app.thumb_layout)
+	text_edit_close(app)
+	ui.line_edit_destroy(&app.text.field)
+	delete(app.leave_path)
+	delete(app.overwrite)
 	delete(app.asked)
 	delete(app.failed)
 	delete(app.status)
@@ -253,6 +304,8 @@ app_title_follow :: proc(app: ^App) {
 
 // Asks the worker for `path`. The document shown stays until the new one is open.
 app_open_file :: proc(app: ^App, path, password: string) {
+	// (what the App keeps is the heap's, whoever calls: a test, a dialog's answer, a drop)
+	context.allocator = runtime.heap_allocator()
 	if app.asked != path {
 		delete(app.asked)
 		app.asked = strings.clone(path)
@@ -273,24 +326,120 @@ say :: proc(app: ^App, format: string, args: ..any) {
 
 STATUS_SHOWN_MS :: 3000
 
+// A new snapshot: a document opened (the view starts again), or the one shown edited (the view, the pictures of the
+// pages that did not change and the selection stay; a page removed hands the selection to the one after it).
 @(private = "file")
 on_opened :: proc(data: rawptr, _: u64) {
 	o := (^Opened)(data)
 	defer free(o)
 	app := (^App)(o.user)
-	snapshot_free(app.snapshot)
+	old := app.snapshot
 	app.snapshot = o.snapshot
-	pictures_clear(app)
+	defer snapshot_free(old)
+	s := app.snapshot
 	clear(&app.last_ask)
-	app.pending = .None
-	app.failure = .None
-	app.wrong = false
-	app.to_top = true
-	app.current = 0
-	app.layer = app.settings.layer   // (each document opens as the settings say: masked, unless asked)
-	ui.line_edit_clear(&app.password)
-	platform.set_title(app.main.win, strings.concatenate({filepath.base(app.snapshot.path), " – ", APP_TITLE}, context.temp_allocator))
+	if s.opened {
+		pictures_clear(app)
+		thumbs_clear(app)
+		text_edit_close(app)
+		app.pending = .None
+		app.failure = .None
+		app.wrong = false
+		app.to_top = true
+		app.current = 0
+		app.layer = app.settings.layer   // (each document opens as the settings say: masked, unless asked)
+		app.text_mode = false
+		app.selected, app.selected_at = s.pages[0].id, 0
+		ui.line_edit_clear(&app.password)
+	} else {
+		at := selected_index(app)
+		if at < 0 && len(s.pages) > 0 {
+			at = min(app.selected_at, len(s.pages) - 1)
+			app.selected = s.pages[at].id
+		}
+		app.selected_at = at
+		// (a text edit open on a page that changed under it is let go)
+		if app.text.open && !page_exists(s, app.text.id) { text_edit_close(app) }
+	}
+	app_title(app)
 	host.host_settle(&app.main)
+}
+
+@(private = "file")
+page_exists :: proc(s: ^Snapshot, id: u64) -> bool {
+	for p in s.pages { if p.id == id { return true } }
+	return false
+}
+
+// The window's title: the file's name, a mark while it holds unsaved edits.
+@(private = "file")
+app_title :: proc(app: ^App) {
+	s := app.snapshot
+	if s == nil { return }
+	mark := s.edited ? "• " : ""
+	platform.set_title(app.main.win, strings.concatenate({mark, filepath.base(s.path), " – ", APP_TITLE}, context.temp_allocator))
+}
+
+@(private = "file")
+on_saved :: proc(data: rawptr, _: u64) {
+	s := (^Saved)(data)
+	defer saved_free(s)
+	app := (^App)(s.user)
+	name := filepath.base(s.path)
+	switch {
+	case !s.ok:     say(app, i18n.tr("%s cannot be written"), name)
+	case s.extract: ui.announce(&app.announcer, .Good, fmt.tprintf(i18n.tr("Saved the page as %s"), name))
+	case:           ui.announce(&app.announcer, .Good, fmt.tprintf(i18n.tr("Saved %s"), name))
+	}
+	host.host_settle(&app.main)
+}
+
+// The block under a click: the field opens over it, its words in it; none says so.
+@(private = "file")
+on_text :: proc(data: rawptr, _: u64) {
+	t := (^Text_Found)(data)
+	defer text_found_free(t)
+	app := (^App)(t.user)
+	if !app.text.asked { return }
+	app.text.asked = false
+	if !t.found {
+		say(app, i18n.tr("No text there: a picture or drawn letters cannot be edited"))
+		host.host_settle(&app.main)
+		return
+	}
+	text_edit_close(app)
+	app.text = {open = true, id = t.id, object = t.block.object, box = t.block.box, field = app.text.field, focus = true}
+	app.text.before = strings.clone(t.block.text)
+	ui.line_edit_set(&app.text.field, t.block.text)
+	if t.block.subset {
+		say(app, i18n.tr("This text's font holds only the letters the document used: a new letter may not show"))
+	}
+	host.host_settle(&app.main)
+}
+
+// The text field closed, its words given up.
+text_edit_close :: proc(app: ^App) {
+	delete(app.text.before)
+	app.text.before = ""
+	app.text.open = false
+	app.text.asked = false
+}
+
+// The field's words, committed: one undoable edit when they changed.
+text_edit_commit :: proc(app: ^App) {
+	if !app.text.open { return }
+	words := ui.line_edit_string(&app.text.field)
+	if words != app.text.before {
+		worker_edit(&app.worker, edit_ask_make(&app.worker, .Text, id = app.text.id, object = app.text.object, text = words))
+	}
+	text_edit_close(app)
+}
+
+// A click on a page while picking text: the worker looks under it (on_text answers).
+text_pick :: proc(app: ^App, id: u64, at: [2]f32) {
+	text_edit_commit(app)
+	app.text.asked = true
+	worker_text_at(&app.worker, id, at)
 }
 
 @(private = "file")
@@ -322,19 +471,23 @@ on_picture :: proc(data: rawptr, _: u64) {
 	defer picture_free(p)
 	app := (^App)(p.user)
 	if app.snapshot == nil || p.revision != app.snapshot.revision { return }
+	cache := p.thumb ? &app.thumbs : &app.pictures
 	r := &app.shared.r
-	s, had := app.pictures[p.id]
+	s, had := cache[p.id]
 	if had && s.size != p.size {
 		render.destroy_texture(r, s.tex)
 		had = false
 	}
 	if !had { s.tex = render.create_texture_rgba(r, p.size.x, p.size.y) }
 	render.update_texture_rgba(r, s.tex, 0, 0, p.size.x, p.size.y, p.rgba)
-	s.size, s.layer, s.seen = p.size, p.layer, app.frame
-	app.pictures[p.id] = s
-	pictures_trim(app)
+	s.size, s.layer, s.version, s.seen = p.size, p.layer, p.version, app.frame
+	cache[p.id] = s
+	cache_trim(app, cache, p.thumb ? THUMBS_KEPT : PICTURES_KEPT)
 	host.host_settle(&app.main)
 }
+
+// Thumbnails kept beyond those in view.
+THUMBS_KEPT :: 200
 
 @(private = "file")
 pictures_clear :: proc(app: ^App) {
@@ -342,17 +495,23 @@ pictures_clear :: proc(app: ^App) {
 	clear(&app.pictures)
 }
 
-// Past PICTURES_KEPT, the pictures seen longest ago go. Runs when a picture comes: over the pictures kept, not the pages.
 @(private = "file")
-pictures_trim :: proc(app: ^App) {
-	for len(app.pictures) > PICTURES_KEPT {
+thumbs_clear :: proc(app: ^App) {
+	for _, s in app.thumbs { render.destroy_texture(&app.shared.r, s.tex) }
+	clear(&app.thumbs)
+}
+
+// Past `kept`, the pictures seen longest ago go. Runs when a picture comes: over the pictures kept, not the pages.
+@(private = "file")
+cache_trim :: proc(app: ^App, cache: ^map[u64]Shown, kept: int) {
+	for len(cache) > kept {
 		oldest: u64
 		oldest_seen := max(u64)
-		for id, s in app.pictures {
+		for id, s in cache {
 			if s.seen < oldest_seen { oldest, oldest_seen = id, s.seen }
 		}
-		render.destroy_texture(&app.shared.r, app.pictures[oldest].tex)
-		delete_key(&app.pictures, oldest)
+		render.destroy_texture(&app.shared.r, cache[oldest].tex)
+		delete_key(cache, oldest)
 	}
 }
 
@@ -368,7 +527,13 @@ app_input :: proc(h: ^host.Host, events: []platform.Event) -> []platform.Event {
 			// (Linux gives a drag's files at its drop only: until then, take it, and look at the drop)
 			effect: Maybe(platform.Drop_Effect) = .Copy
 			if e.kind == .Drop {
-				if path != "" { app_open_file(app, path, "") } else { effect = nil }
+				if path != "" {
+					delete(app.leave_path)
+					app.leave_path = strings.clone(path)
+					leave_document(app, .Open_File)
+				} else {
+					effect = nil
+				}
 			}
 			platform.drop_set_effect(h.win, effect)
 			if e.kind == .Drop || e.kind == .Drop_Leave { platform.drop_data_release(h.win) }

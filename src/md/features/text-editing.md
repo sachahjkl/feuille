@@ -18,7 +18,9 @@ A PDF's text is runs of glyphs in text objects, each with a font. Three limits d
 
 - Hit test on the worker: `FPDFText_LoadPage`, `FPDFText_GetCharIndexAtPos`, then `FPDFText_GetTextObject`.
   `FPDFTextObj_GetText` gives the text, the object's bounds place the field.
-- The field is the window's own, over the block. Enter commits, Escape cancels.
+- A double-click on a page asks (or a click while F2's mode is on): the worker hit-tests and posts the block, the
+  interface opens its field. The field is the window's own, floating in the page's box over the block. Enter commits,
+  Escape cancels, a click elsewhere commits.
 - Commit: `FPDFText_SetText`, `FPDFPage_GenerateContent`, one undoable edit (the inverse sets the old text).
 
 ## Refused alternatives

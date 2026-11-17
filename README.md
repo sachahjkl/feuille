@@ -22,9 +22,10 @@ want it. A protected PDF asks for its password in the window.
 | **The settings (Ctrl+,)** | **Light** |
 | ![The settings](docs/screenshots/settings.png) | ![The light theme](docs/screenshots/light.png) |
 
-Only the pages near the view are drawn, on a thread of their own: a long document scrolls as a short one, and the window
-never waits. Turning, adding, removing and reordering pages, and changing a text block's words, come next
-([ROADMAP.md](ROADMAP.md)). One version, everything in it; a licence only says you support it.
+Turn, add, remove and reorder pages (drag their thumbnails), take one out as its own PDF, change the words of a text
+block, undo and redo every edit, and save a copy. Only the pages near the view are drawn, on a thread of their own: a
+long document scrolls as a short one, and the window never waits. One version, everything in it; a licence only says
+you support it.
 
 One small native program, written in [Odin](https://odin-lang.org) on
 [gui_toolkit](https://github.com/sachahjkl/gui_toolkit), with Chromium's PDF engine,

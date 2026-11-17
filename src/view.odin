@@ -1,8 +1,9 @@
 package feuille
 
-// The window, built each frame from the App: the title bar (the window's own: its tools, the settings, close), the last
-// crash's bar, then the pages, the settings, the password asked or the empty view, and the status bar. A frame reads
-// the layout and the pictures; it computes nothing in proportion to the page count (src/md/features/viewer.md).
+// The window, built each frame from the App: the title bar (the window's own), the tools of the document, the last
+// crash's bar, then the thumbnails and the pages (or the settings, the password asked, the empty view), and the status
+// bar. A frame reads the layouts and the pictures; it computes nothing in proportion to the page count
+// (src/md/features/viewer.md). The pictures it wants, pages and thumbnails, go to the worker as one list at its end.
 
 import "core:fmt"
 import "core:math"
@@ -21,45 +22,78 @@ import pdf "pdf"
 VIEW_AHEAD :: 1.0
 // The vertical scroll bar's width and its gap, in logical pixels: the column fits beside it.
 SCROLL_BAR_ROOM :: 16.0
-// The heights of the bars, in ems.
+// The heights of the bars, in ems; the strip's width.
 TOOL_EM   :: 2.1
 STATUS_EM :: 1.9
+STRIP_EM  :: 10.0
 // Logical pixels past the machined halo's reach before the title bar's rule.
 HALO_ROOM_PX :: 2
+// How far a thumbnail is dragged before it moves, in logical pixels.
+DRAG_START_PX :: 6
 
 view_build :: proc(h: ^host.Host, size: host.Vec2) {
 	app := (^App)(h.user)
 	app.frame += 1
+	clear(&app.frame_asks)
 	em := ui.font_size()
 	// (the user's themes file: a task looks at it now and then; app_params shows what it read)
 	if prefs_page.themes_file_poll(&app.themes_file, &h.state) { host.host_settle(h) }
-	// (the dialogs and the views: the palette, the keys' sheet, around and over the page)
+	// (the dialogs and the views: the palette, the keys' sheet, the confirmations, around and over the page)
 	if ui.views_frame(&app.views) {
 		window_keys(app)
-		if app.settings_open { settings_keys(app) } else { actions_keys(app) }
+		switch {
+		case app.settings_open: settings_keys(app)
+		case app.text.open:     text_keys(app)
+		case:
+			if app.text_mode && ui.key_press(.Escape) { app.text_mode = false }
+			actions_keys(app)
+		}
 		actions_build(app)
 		ui.next({width = ui.fill(), height = ui.fill(), axis = .Y})
 		page := ui.build_box({.Draw_Background}, "###page")
 		if ui.parent(page) { build_page(app, em, size) }
 	}
+	send_asks(app)
 }
 
 @(private = "file")
 build_page :: proc(app: ^App, em: f32, window: host.Vec2) {
 	build_title(app, em)
 	ui.hline(ui.fill())
+	if app.snapshot != nil && !app.settings_open && app.pending != .Locked {
+		build_tools(app, em)
+		ui.hline(ui.fill())
+	}
 	crash_bar.bar(&app.crash_bar, {name = APP_TITLE, version = APP_VERSION, repository = "sachahjkl/feuille"})
-	ui.next({width = ui.fill(), height = ui.fill(), axis = .Y})
-	if ui.column() {
+	ui.next({width = ui.fill(), height = ui.fill()})
+	if ui.row() {
 		switch {
-		case app.settings_open:        settings_build(app)
-		case app.pending == .Locked:   password_view(app, em)
-		case app.snapshot == nil:      empty_view(app)
-		case:                          pages_view(app, window)
+		case app.settings_open:
+			ui.next({width = ui.fill(), height = ui.fill(), axis = .Y})
+			if ui.column() { settings_build(app) }
+		case app.pending == .Locked:
+			password_view(app, em)
+		case app.snapshot == nil:
+			ui.next({width = ui.fill(), height = ui.fill()})
+			if ui.column() { empty_view(app) }
+		case:
+			if app.thumbs_shown {
+				strip_view(app, em, window)
+				vline()
+			}
+			pages_view(app, window)
 		}
 	}
 	ui.hline(ui.fill())
 	build_status(app, em)
+}
+
+// A vertical rule between the strip and the pages, as hline draws the horizontal ones.
+@(private = "file")
+vline :: proc() {
+	line := max(1, math.round(ui.scale()))
+	ui.next({width = ui.px(ui.machined() ? 2 * line : line), height = ui.fill(), bg = ui.color("border")})
+	ui.build_box({.Draw_Background, .Groove}, "")
 }
 
 // An icon of Lucide, `width` wide.
@@ -69,13 +103,13 @@ glyph :: proc(g: string, width: f32, fg: Maybe(ui.Color) = nil, size: f32 = 0) {
 	ui.build_box({.Draw_Text, .No_Text_Trunc}, fmt.tprintf("%s###g%d", g, ui.parent_box().child_count))
 }
 
-// A tool of the title bar for an action of the table: its glyph, its label and keys as its tip, its act name (the
-// palette's Shift+Enter on the action comes to it). `lit`: a switch that is on.
+// A tool for an action of the table: its glyph, its label and keys as its tip, its act name (the palette's Shift+Enter
+// on the action comes to it), lit while a switch is on.
 @(private = "file")
-tool :: proc(app: ^App, a: Action, em: f32, lit := false) {
+tool :: proc(app: ^App, a: Action, em: f32) {
 	c := ACTIONS[a]
 	ui.next({width = ui.px(em * TOOL_EM), height = ui.px(em * TOOL_EM), radius = em * 0.4})
-	sig := ui.button(c.id, icon = c.icon, o = {tip = ui.command_tip(c), icon_font = ui.lucide_icons(), disabled = !action_enabled(app, a), lit = lit})
+	sig := ui.button(c.id, icon = c.icon, o = {tip = ui.command_tip(c), icon_font = ui.lucide_icons(), disabled = !action_enabled(app, a), lit = action_on(app, a)})
 	ui.act_command(sig.box, c.id)
 	if sig.clicked { action_run(app, a) }
 }
@@ -92,7 +126,9 @@ build_title :: proc(app: ^App, em: f32) {
 		switch {
 		case app.settings_open:          title = i18n.tr("Settings")
 		case app.pending == .Loading:    title = fmt.tprintf(i18n.tr("Opening %s…"), filepath.base(app.asked))
-		case app.snapshot != nil:        title = filepath.base(app.snapshot.path)
+		case app.snapshot != nil:
+			title = filepath.base(app.snapshot.path)
+			if app.snapshot.edited { title = fmt.tprintf("%s · %s", title, i18n.tr("edited")) }
 		}
 		ui.next({width = ui.fill(), height = ui.pct(1)})
 		ui.label(fmt.tprintf("%s###title", title))
@@ -100,25 +136,48 @@ build_title :: proc(app: ^App, em: f32) {
 			ui.next({width = ui.px(em * TOOL_EM), height = ui.px(em * TOOL_EM), radius = em * 0.4})
 			if ui.button("back", icon = lucide.ARROW_LEFT, o = {tip = ui.key_tip(i18n.tr("Back to the document"), {.Escape, {}}), icon_font = ui.lucide_icons()}).clicked { app.settings_open = false }
 		} else {
-			if app.snapshot != nil {
-				tool(app, .Layer, em, app.layer)
-				ui.space(ui.CONTROL_GAP)
-				tool(app, .Zoom_Out, em)
-				ui.next({width = ui.text_size(em * 0.4), height = ui.pct(1), text_align = .Center})
-				if ui.tags("weak") { ui.label(fmt.tprintf("%d %%###zoom", int(math.round(ui.zoom_zone_value(&app.zone) * 100)))) }
-				tool(app, .Zoom_In, em)
-				tool(app, .Fit, em)
-				ui.space(ui.CONTROL_GAP)
-			}
 			tool(app, .Open, em)
+			if app.snapshot != nil { tool(app, .Save, em) }
 			tool(app, .Settings, em)
 		}
 		// (the system's title bar has its own close button)
 		if !app.settings.system_title {
 			ui.space(ui.TOOL_GAP)
 			ui.next({width = ui.px(em * TOOL_EM), height = ui.px(em * TOOL_EM), radius = em * 0.4})
-			if ui.button("close", icon = lucide.X, o = {tip = ui.command_tip(ACTIONS[.Quit]), icon_font = ui.lucide_icons()}).clicked { app.quit = true }
+			if ui.button("close", icon = lucide.X, o = {tip = ui.command_tip(ACTIONS[.Quit]), icon_font = ui.lucide_icons()}).clicked { leave_document(app, .Quit) }
 		}
+		ui.space(ui.SPACE_2)
+	}
+}
+
+// The document's tools, in groups: the history, the page, the text, the view.
+@(private = "file")
+build_tools :: proc(app: ^App, em: f32) {
+	ui.next({width = ui.fill(), height = ui.px(ui.dense(em * (TOOL_EM + 0.5)))})
+	if ui.row(.Center) {
+		ui.space(ui.SPACE_2)
+		tool(app, .Thumbnails, em)
+		ui.space(ui.CONTROL_GAP)
+		tool(app, .Undo, em)
+		tool(app, .Redo, em)
+		ui.space(ui.CONTROL_GAP)
+		tool(app, .Rotate_Left, em)
+		tool(app, .Rotate_Right, em)
+		tool(app, .Move_Up, em)
+		tool(app, .Move_Down, em)
+		tool(app, .Insert_Blank, em)
+		tool(app, .Insert_File, em)
+		tool(app, .Remove_Page, em)
+		tool(app, .Extract_Page, em)
+		ui.space(ui.CONTROL_GAP)
+		tool(app, .Edit_Text, em)
+		tool(app, .Layer, em)
+		ui.spacer(ui.fill())
+		tool(app, .Zoom_Out, em)
+		ui.next({width = ui.text_size(em * 0.4), height = ui.pct(1), text_align = .Center})
+		if ui.tags("weak") { ui.label(fmt.tprintf("%d %%###zoom", int(math.round(ui.zoom_zone_value(&app.zone) * 100)))) }
+		tool(app, .Zoom_In, em)
+		tool(app, .Fit, em)
 		ui.space(ui.SPACE_2)
 	}
 }
@@ -140,6 +199,7 @@ build_status :: proc(app: ^App, em: f32) {
 					msg = ""
 					if s := app.snapshot; s != nil && !app.settings_open {
 						msg = fmt.tprintf(i18n.tr("Page %d of %d"), app.current + 1, len(s.pages))
+						if at := selected_index(app); at >= 0 && at != app.current { msg = fmt.tprintf(i18n.tr("%s · page %d selected"), msg, at + 1) }
 						if !app.layer { msg = fmt.tprintf("%s · %s", msg, i18n.tr("form layer hidden")) }
 					}
 				}
@@ -222,13 +282,15 @@ password_view :: proc(app: ^App, em: f32) {
 	}
 }
 
-// What a page's box draws: its sheet and a soft shadow, then its picture when it has one.
+// What a page's box draws: its sheet and a soft shadow, its picture when it has one, a ring when it is selected.
 @(private = "file")
 Page_Draw :: struct {
-	tex:    render.Texture,
-	has:    bool,
-	shadow: draw.Color,
-	scale:  f32,
+	tex:      render.Texture,
+	has:      bool,
+	shadow:   draw.Color,
+	accent:   draw.Color,
+	selected: bool,
+	scale:    f32,
 }
 
 @(private = "file")
@@ -238,6 +300,20 @@ page_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
 	draw.rect(dc, {b.rect.min + {0, lift}, b.rect.max + {0, lift}}, d.shadow, soft = 6 * d.scale)
 	draw.rect(dc, b.rect, draw.WHITE)   // (a page's paper is white whatever the theme: the engine draws on white)
 	if d.has { draw.image(dc, d.tex, b.rect) }
+	if d.selected {
+		ring := 2 * d.scale
+		draw.rect(dc, {b.rect.min - ring, b.rect.max + ring}, d.accent, radius = ring, border = ring)
+	}
+}
+
+// The view's size, as the last layout of `box` found it (`fallback` before the first), less the vertical scroll bar's
+// room: a column fitted to the whole box would overflow it by the bar and scroll sideways.
+@(private = "file")
+view_of :: proc(box: ^ui.Box, fallback: host.Vec2) -> [2]f32 {
+	view := [2]f32{box.rect.max.x - box.rect.min.x, box.rect.max.y - box.rect.min.y}
+	if view.x <= 0 || view.y <= 0 { view = fallback }
+	view.x = max(view.x - SCROLL_BAR_ROOM, 1)
+	return view
 }
 
 @(private = "file")
@@ -252,21 +328,17 @@ pages_view :: proc(app: ^App, window: host.Vec2) {
 @(private = "file")
 pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 	s := app.snapshot
-	// the view's size, as the last layout found it (the window's before the first), less the vertical scroll bar's room:
-	// a column fitted to the whole box would overflow it by the bar and scroll sideways
-	view := [2]f32{box.rect.max.x - box.rect.min.x, box.rect.max.y - box.rect.min.y}
-	if view.x <= 0 || view.y <= 0 { view = window }
-	view.x = max(view.x - SCROLL_BAR_ROOM, 1)
+	view := view_of(box, window)
 	if app.to_top {
 		box.view_off, box.view_target = {}, {}
 		app.to_top = false
 	}
 	if layout_stale(app.layout, s.revision, view.x, zoom) {
-		// (the point at the middle of the view stays there through a zoom or a resize)
+		// (the point at the middle of the view stays there through a zoom, a resize or an edit)
 		page, fraction := layout_at(app.layout, box.view_off.y + view.y / 2)
-		same := app.layout.revision == s.revision && page >= 0
+		keep := page >= 0 && page < len(app.layout.tops)
 		layout_make(&app.layout, s.revision, s.pages, view.x, zoom, ui.scale())
-		if same {
+		if keep && page < len(app.layout.tops) {
 			y := max(app.layout.tops[page] + fraction * app.layout.sizes[page].y - view.y / 2, 0)
 			box.view_off.y, box.view_target.y = y, y
 		}
@@ -280,10 +352,10 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 	top := box.view_off.y
 	app.current, _ = layout_at(l^, top + view.y / 2)
 	first, last := layout_range(l^, top - view.y * VIEW_AHEAD, top + view.y * (1 + VIEW_AHEAD))
-	ask_pictures(app, first, last, top + view.y / 2)
+	want_pictures(app, l, first, last, top + view.y / 2, false)
 	if first >= last { return }
 
-	shadow := ui.color("shadow")
+	shadow, accent := ui.color("shadow"), ui.color("accent")
 	ui.next({width = ui.px(max(view.x, l.widest + 2 * PAGE_MARGIN)), height = ui.children_sum()})
 	if ui.column() {
 		ui.spacer(ui.px(l.tops[first]), exact = true)
@@ -294,13 +366,25 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 			if ui.row() {
 				ui.spacer(ui.fill())
 				d := ui.frame_new(Page_Draw)
-				d.shadow, d.scale = shadow, ui.scale()
+				d.shadow, d.accent, d.scale = shadow, accent, ui.scale()
+				d.selected = p.id == app.selected && len(s.pages) > 1
 				if shown, ok := &app.pictures[p.id]; ok {
 					d.tex, d.has = shown.tex, true
 					shown.seen = app.frame
 				}
-				ui.next({width = ui.px(l.sizes[i].x), height = ui.px(l.sizes[i].y)})
-				ui.custom(fmt.tprintf("###page%d", p.id), page_draw, d)
+				size := l.sizes[i]
+				ui.next({width = ui.px(size.x), height = ui.px(size.y)})
+				b := ui.custom(fmt.tprintf("###page%d", p.id), page_draw, d, {.Clickable})
+				if app.text_mode { b.cursor = .Text }
+				sig := ui.signal(b)
+				if sig.clicked || sig.double_clicked {
+					app.selected, app.selected_at = p.id, i
+					at := [2]f32{sig.mouse.x / max(size.x, 1), sig.mouse.y / max(size.y, 1)}
+					if app.text_mode || sig.double_clicked { text_pick(app, p.id, at) }
+				}
+				if app.text.open && app.text.id == p.id {
+					if ui.parent(b) { text_field(app, size) }
+				}
 				ui.spacer(ui.fill())
 			}
 		}
@@ -309,32 +393,168 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 	}
 }
 
-// Asks the worker for the pictures of [first, last) that are missing or stale, the nearest to `middle` first. Nothing
-// when the list is the one asked last.
+// The text field over the block being edited, inside its page's box: as wide as the block, a little more for the words
+// that grow it, one line high at least.
 @(private = "file")
-ask_pictures :: proc(app: ^App, first, last: int, middle: f32) {
+text_field :: proc(app: ^App, page: [2]f32) {
+	bx := app.text.box
+	em := ui.font_size()
+	x, y := bx[0] * page.x, bx[1] * page.y
+	w := max((bx[2] - bx[0]) * page.x + em * 4, em * 10)
+	h := max((bx[3] - bx[1]) * page.y, em * 1.9)
+	ui.next({fixed_x = x - em * 0.3, fixed_y = y, width = ui.px(w), height = ui.px(h)})
+	res := ui.line_edit("###text_edit", &app.text.field, {placeholder = i18n.tr("Words")})
+	if app.text.focus {
+		ui.set_focus(res.box.key)
+		app.text.focus = false
+	}
+	if res.committed { text_edit_commit(app) }
+}
+
+// Escape gives the words up; a click elsewhere commits them (text_pick, a page's click).
+@(private = "file")
+text_keys :: proc(app: ^App) {
+	if ui.key_press(.Escape) { text_edit_close(app) }
+}
+
+// What a thumbnail draws: its picture, a ring when selected, a line where a dragged page would go.
+@(private = "file")
+Thumb_Draw :: struct {
+	tex:      render.Texture,
+	has:      bool,
+	selected: bool,
+	current:  bool,
+	dragged:  bool,
+	accent:   draw.Color,
+	edge:     draw.Color,
+	scale:    f32,
+}
+
+@(private = "file")
+thumb_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
+	d := (^Thumb_Draw)(user)
+	draw.rect(dc, b.rect, draw.WHITE)
+	if d.has { draw.image(dc, d.tex, b.rect, tint = d.dragged ? {1, 1, 1, 0.4} : draw.WHITE) }
+	ring := 2 * d.scale
+	switch {
+	case d.selected: draw.rect(dc, {b.rect.min - ring, b.rect.max + ring}, d.accent, radius = ring, border = ring)
+	case d.current:  draw.rect(dc, {b.rect.min - ring / 2, b.rect.max + ring / 2}, d.edge, border = ring / 2)
+	}
+}
+
+// The strip of thumbnails: every page small, the selected one ringed; a click selects and shows it, a drag moves it.
+@(private = "file")
+strip_view :: proc(app: ^App, em: f32, window: host.Vec2) {
+	ui.next({width = ui.px(em * STRIP_EM), height = ui.fill(), axis = .Y})
+	box := ui.build_box({.Clip, .View_Scroll_Y, .View_Clamp_Y, .Allow_Overflow_Y}, "###strip")
+	_ = ui.signal(box)
+	if ui.parent(box) { strip_column(app, box, em, window) }
+}
+
+@(private = "file")
+strip_column :: proc(app: ^App, box: ^ui.Box, em: f32, window: host.Vec2) {
 	s := app.snapshot
-	l := &app.layout
+	view := view_of(box, {em * STRIP_EM, window.y})
+	l := &app.thumb_layout
+	if layout_stale(l^, s.revision, view.x, 1) { layout_make(l, s.revision, s.pages, view.x, 1, ui.scale()) }
+	if len(l.tops) == 0 { return }
+	top := box.view_off.y
+	first, last := layout_range(l^, top - view.y, top + view.y * 2)
+	want_pictures(app, l, first, last, top + view.y / 2, true)
+	if first >= last { return }
+
+	// the drag: where the page held would go, from the pointer's height in the strip
+	if app.drag_id != 0 {
+		y := ui.mouse_pos().y - box.rect.min.y + top
+		page, fraction := layout_at(l^, y)
+		app.drop_at = page + (fraction > 0.5 ? 1 : 0)
+	}
+	accent, edge := ui.color("accent"), ui.color("border")
+	ui.next({width = ui.px(view.x), height = ui.children_sum()})
+	if ui.column(.Center) {
+		ui.spacer(ui.px(l.tops[first]), exact = true)
+		for i in first ..< last {
+			if i > first { ui.spacer(ui.px(PAGE_GAP), exact = true) }
+			p := s.pages[i]
+			if app.drag_id != 0 && app.drop_at == i { drop_line(app, view.x, accent) }
+			d := ui.frame_new(Thumb_Draw)
+			d.selected, d.current, d.dragged = p.id == app.selected, i == app.current, p.id == app.drag_id
+			d.accent, d.edge, d.scale = accent, edge, ui.scale()
+			if shown, ok := &app.thumbs[p.id]; ok {
+				d.tex, d.has = shown.tex, true
+				shown.seen = app.frame
+			}
+			ui.next({width = ui.px(l.sizes[i].x), height = ui.px(l.sizes[i].y)})
+			sig := ui.signal(ui.custom(fmt.tprintf("###thumb%d", p.id), thumb_draw, d, {.Clickable}))
+			if sig.dragging && app.drag_id == 0 && abs(sig.drag_delta.y) > DRAG_START_PX * ui.scale() {
+				app.drag_id, app.drop_at = p.id, i
+			}
+			if sig.released && app.drag_id == p.id { thumb_dropped(app, i) }
+			if sig.clicked && app.drag_id == 0 { go_to_page(app, i) }
+		}
+		if app.drag_id != 0 && app.drop_at >= last { drop_line(app, view.x, accent) }
+		below := l.height - (l.tops[last - 1] + l.sizes[last - 1].y)
+		ui.spacer(ui.px(below), exact = true)
+	}
+	// (the button let go anywhere else: the drag ends where it is)
+	if app.drag_id != 0 && ui.active_key() == 0 { app.drag_id = 0 }
+}
+
+// The accent line where a dragged thumbnail would go.
+@(private = "file")
+drop_line :: proc(app: ^App, width: f32, accent: draw.Color) {
+	ui.next({width = ui.px(width * 0.8), height = ui.px(3), bg = accent, radius = 1.5})
+	ui.build_box({.Draw_Background}, "###drop")
+}
+
+// A thumbnail let go: its page moves to where the line is (one undoable edit).
+@(private = "file")
+thumb_dropped :: proc(app: ^App, from: int) {
+	id := app.drag_id
+	app.drag_id = 0
+	to := app.drop_at
+	// (the line is between two pages: below its own place, the page takes the slot before it)
+	if to > from { to -= 1 }
+	if to == from { return }
+	app.selected, app.selected_at = id, to
+	worker_edit(&app.worker, edit_ask_make(&app.worker, .Move, id = id, to = to))
+}
+
+// The pictures of [first, last) of layout `l` that are missing or stale, the nearest to `middle` first, added to the
+// frame's list (send_asks sends it).
+@(private = "file")
+want_pictures :: proc(app: ^App, l: ^Layout, first, last: int, middle: f32, thumb: bool) {
+	s := app.snapshot
 	k := ui.scale()
-	asks := make([dynamic]Render_Ask, 0, max(last - first, 0), context.temp_allocator)
+	cache := thumb ? &app.thumbs : &app.pictures
+	start := len(app.frame_asks)
 	for i in first ..< last {
 		p := s.pages[i]
 		size := [2]int{int(math.round(l.sizes[i].x * k)), int(math.round(l.sizes[i].y * k))}
 		if size.x <= 0 || size.y <= 0 { continue }
-		if shown, ok := app.pictures[p.id]; ok && shown.size == size && shown.layer == app.layer { continue }
-		append(&asks, Render_Ask{revision = s.revision, index = i, id = p.id, size = size, layer = app.layer})
+		// (a thumbnail draws the page's own content: the strip is for finding a page, the layer is the page's)
+		layer := thumb ? false : app.layer
+		if shown, ok := cache[p.id]; ok && shown.size == size && shown.layer == layer && shown.version == p.version { continue }
+		append(&app.frame_asks, Render_Ask{revision = s.revision, index = i, id = p.id, version = p.version, size = size, layer = layer, thumb = thumb})
 	}
 	// nearest first (a handful of pages: an insertion sort)
+	asks := app.frame_asks[start:]
 	distance :: proc(l: ^Layout, i: int, middle: f32) -> f32 { return abs(l.tops[i] + l.sizes[i].y / 2 - middle) }
 	for i in 1 ..< len(asks) {
 		for j := i; j > 0 && distance(l, asks[j].index, middle) < distance(l, asks[j - 1].index, middle); j -= 1 {
 			asks[j], asks[j - 1] = asks[j - 1], asks[j]
 		}
 	}
-	if len(asks) == 0 || same_asks(asks[:], app.last_ask[:]) { return }
+}
+
+// The frame's list to the worker, unless it is the one asked last.
+@(private = "file")
+send_asks :: proc(app: ^App) {
+	asks := app.frame_asks[:]
+	if len(asks) == 0 || same_asks(asks, app.last_ask[:]) { return }
 	clear(&app.last_ask)
-	append(&app.last_ask, ..asks[:])
-	worker_render(&app.worker, asks[:])
+	append(&app.last_ask, ..asks)
+	worker_render(&app.worker, asks)
 }
 
 @(private = "file")

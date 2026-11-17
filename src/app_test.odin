@@ -22,7 +22,6 @@ RED   :: session.Color{255, 0, 0, 255}
 WHITE :: session.Color{255, 255, 255, 255}
 
 // The program on `path`, in a session that ends with the test.
-@(private = "file")
 start :: proc(t: ^testing.T, path: string, size := [2]int{700, 800}, loc := #caller_location) -> (s: ^session.Session, app: ^App) {
 	context.allocator = runtime.heap_allocator()
 	app = app_open({path = path, headless = true, size = size})
@@ -34,7 +33,6 @@ start :: proc(t: ^testing.T, path: string, size := [2]int{700, 800}, loc := #cal
 }
 
 // A PDF of the tests' writer, in the test's folder.
-@(private = "file")
 write_pdf :: proc(t: ^testing.T, name: string, o: fixture.Options) -> string {
 	dir := testkit.temp_folder(t, "feuille")
 	path := fmt.aprintf("%s/%s", dir, name, allocator = context.temp_allocator)
@@ -57,15 +55,12 @@ page_pixel :: proc(s: ^session.Session, app: ^App, img: session.Image, index: in
 @(private = "file")
 centre :: proc(r: [4]f32) -> [2]f32 { return {r[0] + r[2] / 2, r[1] + r[3] / 2} }
 
-// Every picture in view is there, and of the layer asked.
-@(private = "file")
+// Every picture in view is there, of the layer asked and of the page's content now: the last frame laid the snapshot
+// out and wanted nothing more.
 pictures_ready :: proc(s: ^session.Session, app: ^App) -> bool {
-	if app.snapshot == nil || len(app.last_ask) == 0 { return false }
-	for a in app.last_ask {
-		shown, ok := app.pictures[a.id]
-		if !ok || shown.size != a.size || shown.layer != a.layer { return false }
-	}
-	return true
+	if app.snapshot == nil || app.layout.revision != app.snapshot.revision { return false }
+	if app.thumbs_shown && app.thumb_layout.revision != app.snapshot.revision { return false }
+	return len(app.frame_asks) == 0 && len(app.pictures) > 0
 }
 
 // The day-one test, in the window: the blocked document asks its password, then opens with its layer hidden; Ctrl+L
@@ -124,7 +119,8 @@ a_long_document_builds_the_pages_in_view :: proc(t: ^testing.T) {
 		if session.find(s, fmt.tprintf("page%d", p.id)) != nil { built += 1 }
 	}
 	testing.expect(t, built > 0 && built < 10, fmt.tprintf("a few pages built, not %d", built))
-	testing.expect(t, len(app.last_ask) < 10, "a few pictures asked")
+	testing.expect(t, len(app.pictures) < 10, "a few pages drawn")
+	testing.expect(t, len(app.thumbs) < 40, "a few thumbnails drawn")
 	session.save_png(s, "window.png")   // (build/session/: what the window showed, to look at)
 }
 

@@ -18,6 +18,12 @@ size of the document.
 - A render ask carries the list of wanted pictures. A newer ask replaces a waiting one: when the person scrolls fast,
   the worker renders where the view is, not where it was.
 
+- The thumbnails are a second column with a layout of their own (the same code, the strip's width, no zoom). Their
+  pictures are asked with the pages' in one list and kept in a cache of their own; they draw the pages' own content,
+  never the layer.
+- After an edit, only the pages whose content version moved (a turn, a text edit) are rendered again: a move or a
+  removal re-renders nothing.
+
 ## Subtleties
 
 - The worker renders one page at a time and checks for a newer ask between pages, so a long list never delays the
