@@ -3,6 +3,13 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-17 19:28
+
+### Added
+- **Thumbnails.** Every page small beside the document (Ctrl+B): a click shows it, a drag moves it.
+- **Change the words.** Double-click a text block: a field opens over it with its words; Enter changes them in the PDF. Feuille says when the font may lack a new letter.
+- **Arrange the pages.** Turn a page (Ctrl+R), remove it (Delete), add a blank page or the pages of another PDF after it, move it (Alt+Up, Alt+Down, or drag its thumbnail), save it alone as a PDF (Ctrl+E). Every edit undoes and redoes (Ctrl+Z, Ctrl+Shift+Z); Ctrl+S saves a copy, and leaving unsaved edits asks first.
+
 ## [0.2.0] - 2026-11-17 17:40
 
 ### Added
@@ -16,5 +23,6 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.3.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.3.0
 [0.2.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.1.0

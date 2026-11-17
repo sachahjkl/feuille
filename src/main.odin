@@ -8,7 +8,7 @@ import "gt:cli"
 import host "gt:host"
 import "gt:platform"
 
-APP_VERSION :: "0.2.0"
+APP_VERSION :: "0.3.0"
 APP_NAME    :: "feuille"
 APP_TITLE   :: "Feuille"
 APP_FOLDER  :: "FromentSoftware" + platform.USER_DIR_SEPARATOR + APP_TITLE
