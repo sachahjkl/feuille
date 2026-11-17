@@ -69,9 +69,6 @@ file_dialogs_path :: proc(allocator := context.temp_allocator) -> string {
 prefs_open :: proc(p: ^config.Prefs, args: []string, read_file := true, descriptions := context.allocator) -> (rest: [dynamic]string, problems: [dynamic]string) {
 	p^ = config.prefs_make()
 	prefs_page.standard_register(p, prefs_page.STANDARD_ALL, standard_defaults(), descriptions)
-	// (the launcher and the start with the session apply to the copy that is integrated: their switches show once a
-	// task found this copy is it, desktop_follow)
-	desktop_owned_hide(p, true)
 	config.register(p, PREF_DEFS[:])
 	prefs_page.changelog_register(p)   // (the version last started: What's new after an update)
 	file_problems: [dynamic]string

@@ -25,7 +25,7 @@ import "gt:render"
 import setup "gt:setup"
 import tasks "gt:tasks"
 import "gt:ui"
-import pdf "pdf"
+import pdf "gt:pdf"
 
 // feuille's own texts in each language it speaks besides English (the toolkit's are the toolkit's).
 PROGRAM_CATALOGUES :: []i18n.Catalog{{"fr", #load("../i18n/fr.txt", string)}}
@@ -48,18 +48,21 @@ Shown :: struct {
 	seen:    u64,   // the frame it was last drawn in
 }
 
-// A text block being edited: the window's field over it (src/md/features/text-editing.md). Its states: none; asked
-// (a click sent the worker to look under it); open (the field over the block); then committed or cancelled.
+// A stamp being written: the window's field over it (src/md/features/stamps.md). Its states: none; open (the field
+// over the stamp, or at the point clicked for a new one); then committed or given up.
 Text_Edit :: struct {
-	asked:  bool,
 	open:   bool,
 	id:     u64,       // the page
-	object: int,       // the text object on it
+	index:  int,       // the stamp on it (-1: a new one)
 	box:    [4]f32,    // shares of the page shown
-	before: string,    // its words when opened (owned): a commit of the same words changes nothing
+	before: string,    // its words when opened (owned): a commit of the same words and style changes nothing
+	style:  pdf.Stamp, // its style when opened
 	field:  ui.Line_Edit,
 	focus:  bool,      // the next build gives the field the keyboard
 }
+
+// The size of a stamp before anything is chosen (black sans serif on nothing), in points.
+STAMP_SIZE :: 14
 
 App :: struct {
 	shared:        host.Shared,
@@ -71,7 +74,6 @@ App :: struct {
 	launch_after:  string,   // the program started again once this one ends (an update, Restart); owned
 	exe:           string,   // this program's file, read once at the start (an update puts a new one in its place); owned
 	pool:          tasks.Pool,   // what waits on the system: the launches, the applications of "Open with" (launch.odin)
-	desktop_pool:  tasks.Pool,   // the desktop's integration followed, one change at a time (integration.odin)
 	install:       prefs_page.Install,   // the install: its offer, its dialog, the settings' page (integration.odin)
 	opened:        [dynamic]string,      // headless: what a launch would have started (owned)
 
@@ -106,7 +108,7 @@ App :: struct {
 	snapshot:      ^Snapshot,     // nil: none open
 	pending:       Pending,
 	asked:         string,        // the file of the open under way, or of the password asked
-	failure:       pdf.Error,     // why the last open failed (None: it did not)
+	failure:       Open_Error,    // why the last open failed (None: it did not)
 	failed:        string,        // the file it failed on
 	password:      ui.Line_Edit,
 	reveal:        bool,
@@ -130,8 +132,9 @@ App :: struct {
 	thumb_layout:  Layout,
 	drag_id:       u64,           // a thumbnail dragged (0: none)
 	drop_at:       int,           // where it would go, an index
-	text_mode:     bool,          // a click on a page picks a text block
+	text_mode:     bool,          // the text tool: a click on a page places a stamp, or opens the one under it
 	text:          Text_Edit,
+	style:         pdf.Stamp,     // the style of the stamp written and of the next ones (its text unused)
 	go_jump:       bool,          // go_to is reached at once, not scrolled to (a document opened at its last page)
 	memory:        Memory,        // the recent PDFs, each one's page and zoom (recent.odin)
 	reopening:     bool,          // the open under way is the last document's, at the start: a failure is not said
@@ -168,6 +171,7 @@ app_open :: proc(o: App_Options) -> ^App {
 	context.allocator = runtime.heap_allocator()
 	app := new(App)
 	app.headless = o.headless
+	app.style = {size = STAMP_SIZE}
 	app.go_to = -1
 	// (read once: after an update the file is the new program, and a restart reads no file on this thread)
 	app.exe = strings.clone(process.executable_path())
@@ -182,7 +186,8 @@ app_open :: proc(o: App_Options) -> ^App {
 		config.user_writer_start(&app.prefs_writer, &app.prefs, app.prefs_path)
 	}
 	prefs_page.themes_file_init(&app.themes_file, o.headless ? "" : themes_file(), themes())
-	prefs_page.install_init(&app.install, &app.prefs, setup_options())
+	// (the announcer is set up with the window: the install says through it when the desktop refuses a setting)
+	prefs_page.install_init(&app.install, &app.prefs, setup_options(), &app.announcer)
 	memory_open(app)
 
 	// (before the first window: Wayland and the taskbar group the windows by it)
@@ -204,7 +209,6 @@ app_open :: proc(o: App_Options) -> ^App {
 		if path := config.string_of(&app.prefs, prefs_page.EMOJI_FONT_PREF); path != "" { font.set_emoji_source(&app.shared.fonts, path) }
 	}
 	tasks.start(&app.pool, {threads = 1, grow = 2})
-	tasks.start(&app.desktop_pool, {threads = 1})
 	if !o.headless {
 		ui.views_init(&app.views, {path = views_path()})
 	} else {
@@ -222,7 +226,6 @@ app_open :: proc(o: App_Options) -> ^App {
 	// (an edited document asks first: the window stays until the answer)
 	h.close_asked = proc(h: ^host.Host) { leave_document((^App)(h.user), .Quit) }
 	licence_init(app)
-	desktop_follow(app)
 	if !o.headless {
 		// (what each file dialog remembers: read on the chores, written by its own thread)
 		ui.file_dialog_memory(&h.state, file_dialogs_path())
@@ -244,7 +247,7 @@ app_open :: proc(o: App_Options) -> ^App {
 	app.thumbs_shown = true
 	app.last_ask = make([dynamic]Render_Ask)
 	app.frame_asks = make([dynamic]Render_Ask)
-	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture, saved = on_saved, text = on_text})
+	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture, saved = on_saved, printed = on_printed, window = o.headless ? nil : h.win})
 	switch {
 	case o.path != "":
 		app_open_file(app, o.path, "")
@@ -274,7 +277,6 @@ app_close :: proc(app: ^App) {
 	worker_stop(&app.worker)
 	// (their answers find the window closed: each task frees what it was given)
 	tasks.stop(&app.pool)
-	tasks.stop(&app.desktop_pool)
 	prefs_page.updates_stop(&app.updates)
 	devtools.stop(app.devtools)
 	pictures_clear(app)   // (before the renderer goes: the textures are its)
@@ -460,52 +462,70 @@ on_saved :: proc(data: rawptr, _: u64) {
 	host.host_settle(&app.main)
 }
 
-// The block under a click: the field opens over it, its words in it; none says so.
 @(private = "file")
-on_text :: proc(data: rawptr, _: u64) {
-	t := (^Text_Found)(data)
-	defer text_found_free(t)
-	app := (^App)(t.user)
-	if !app.text.asked { return }
-	app.text.asked = false
-	if !t.found {
-		say(app, i18n.tr("No text there: a picture or drawn letters cannot be edited"))
-		host.host_settle(&app.main)
-		return
-	}
-	text_edit_close(app)
-	app.text = {open = true, id = t.id, object = t.block.object, box = t.block.box, field = app.text.field, focus = true}
-	app.text.before = strings.clone(t.block.text)
-	ui.line_edit_set(&app.text.field, t.block.text)
-	if t.block.subset {
-		say(app, i18n.tr("This text's font holds only the letters the document used: a new letter may not show"))
+on_printed :: proc(data: rawptr, _: u64) {
+	p := (^Printed)(data)
+	defer free(p)
+	app := (^App)(p.user)
+	switch p.status {
+	case .Printed:     ui.announce(&app.announcer, .Good, i18n.tr("Sent to the printer"))
+	case .Cancelled:
+	case .Unsupported: say(app, i18n.tr("Printing is not available here"))
+	case .Failed:      say(app, i18n.tr("The document could not be printed"))
 	}
 	host.host_settle(&app.main)
 }
 
-// The text field closed, its words given up.
+// The stamp field closed, its words given up.
 text_edit_close :: proc(app: ^App) {
 	delete(app.text.before)
 	app.text.before = ""
 	app.text.open = false
-	app.text.asked = false
 }
 
-// The field's words, committed: one undoable edit when they changed.
+// The field's words, committed: one undoable edit when its words or its style changed. A new stamp left empty is
+// nothing; an old one emptied is removed.
 text_edit_commit :: proc(app: ^App) {
 	if !app.text.open { return }
 	words := ui.line_edit_string(&app.text.field)
-	if words != app.text.before {
-		worker_edit(&app.worker, edit_ask_make(&app.worker, .Text, id = app.text.id, object = app.text.object, text = words))
+	style := app.style
+	style.text = ""
+	if app.text.index < 0 ? words != "" : (words != app.text.before || style != app.text.style) {
+		at := [2]f32{app.text.box[0], app.text.box[1]}
+		worker_edit(&app.worker, stamp_ask_make(&app.worker, app.text.id, app.text.index, style, words, at))
 	}
 	text_edit_close(app)
 }
 
-// A click on a page while picking text: the worker looks under it (on_text answers).
-text_pick :: proc(app: ^App, id: u64, at: [2]f32) {
+// The stamp of page `p` under `at` (shares of the page shown), the last drawn first; -1: none.
+stamp_at :: proc(p: Snapshot_Page, at: [2]f32) -> int {
+	#reverse for st, k in p.stamps {
+		b := st.box
+		if at.x >= b[0] && at.x <= b[2] && at.y >= b[1] && at.y <= b[3] { return k }
+	}
+	return -1
+}
+
+// A click of the text tool on page `p` at `at`: the stamp under it opens, its style becomes the tool's; elsewhere a
+// new stamp opens there. What was being written is committed first.
+stamp_click :: proc(app: ^App, p: Snapshot_Page, at: [2]f32) {
 	text_edit_commit(app)
-	app.text.asked = true
-	worker_text_at(&app.worker, id, at)
+	k := stamp_at(p, at)
+	app.text.open, app.text.id, app.text.index, app.text.focus = true, p.id, k, true
+	if k >= 0 {
+		st := p.stamps[k]
+		app.style = st.stamp
+		app.style.text = ""
+		app.text.box = st.box
+		app.text.before = strings.clone(st.stamp.text)
+		ui.line_edit_set(&app.text.field, st.stamp.text)
+	} else {
+		app.text.box = {at.x, at.y, at.x, at.y}
+		ui.line_edit_set(&app.text.field, "")
+	}
+	app.text.style = app.style
+	app.text.style.text = ""
+	host.host_settle(&app.main)
 }
 
 @(private = "file")

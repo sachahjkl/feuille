@@ -12,14 +12,14 @@ others. The how-to is [docs/desktop.md](../../../docs/desktop.md).
   `--status`, `--setup`, the dialog and the settings' Installation page. feuille gives its identity (`src/integration.odin`:
   its name, its icons, "PDF Reader", `Office;Viewer;Graphics;`) and its boxes. Windows offers the install at the start
   (`SETUP_AT_START`, `src/system_windows.odin`); Linux has Nix or `feuille --install`.
-- **One box: the PATH.** "Open PDF files with Feuille" (the default application of `application/pdf`) waits for the
-  toolkit's desktop integration to know a file association. Its index is reserved beside `SETUP_PATH`. A box that wrote
-  nothing would say a thing that is false.
-- **The menu and the session follow the integrated copy only** (`desktop_follow`). `general.menu` and
-  `general.autostart` stay hidden until a task finds that the copy that runs is the installed one; then a change of
-  either applies to that install, the PATH left as the install made it. A build or Nix's copy installs nothing because
-  of a preference. The task runs on a pool of one thread (`desktop_pool`): the changes apply in their order, the last
-  one wins.
+- **Three boxes: the PATH, Open with, the default.** "Open PDF files with Feuille" puts Feuille in the file managers'
+  Open with (the toolkit's `Documents` part: `.pdf`, `application/pdf`); "Feuille opens PDF files by default" makes it
+  the PDF files' application on Linux, and opens Windows' Default apps page at Feuille, since Windows lets only the
+  person choose. The PDF type is always named, box ticked or not: an uninstall reads it to take it away.
+- **The menu and the session follow the installed copy only**, by the toolkit (`prefs_page.install_follow`):
+  `general.menu` and `general.autostart` stay hidden until the install's reading finds that the copy that runs is the
+  installed one; then a change of either applies to that install, its other parts left as the install made them. A
+  build or Nix's copy installs nothing because of a preference. feuille has no code of its own for them.
 - **One window per person** (`gt:instance`, its server on a thread of its own). A second `feuille file.pdf` sends its
   file, its launcher's activation token and `--setup` when given; the first opens the file as a drop does (an edited
   document asks first), raises its window with the token (Wayland's focus rule) and ends nothing. `--status` pings it;

@@ -8,9 +8,8 @@ behind it (the decisions, the refused alternatives, the subtle points) are in [s
 
 | Where | What |
 |---|---|
-| `src/pdf/` | The PDF engine's binding (PDFium, opened with dlopen): open, render, the edits, save. One thread calls it. |
-| `src/worker.odin` | The document's worker: it owns the engine and the open document; it loads, renders, edits and saves, and posts each answer (`ui.post`). |
-| `src/edits.odin` | The edits the worker makes: turn, remove, add, import, move, extract, a text block's words, undo and redo. |
+| `src/worker.odin` | The document's worker: it holds the list of pages and the files they come from (the toolkit's `gt:pdf`); it loads, renders, edits and saves, and posts each answer (`ui.post`). |
+| `src/edits.odin` | The edits of the list: turn, remove, add, import, move, extract, the stamps of text, undo and redo. |
 | `src/layout.odin` | The column of pages and the strip of thumbnails: each page's place, computed when the document or the zoom changes, never in a frame. |
 | `src/app.odin` | The App: the window, its settings, the snapshot of the document, the pictures; `app_open`, `app_step`, `app_close` (the tests drive the same procedures). |
 | `src/view.odin` | The window: the title bar and the window's buttons, the tools, the pages and the thumbnails, the password asked, the empty view, the status bar. |
@@ -25,7 +24,7 @@ behind it (the decisions, the refused alternatives, the subtle points) are in [s
 | `src/updates.odin`, `src/licence.odin` | The toolkit's updater and licence, given feuille's product and words. |
 | `src/system_<os>.odin` | What differs between the systems in the program itself (`SETUP_AT_START`). |
 | `src/fixture/` | The tests' PDF writer: no binary file in the repository. |
-| `tools/feuilletool/` | The project's commands: build, test, check, release, site, notices, logo, shots, bench. |
+| `tools/feuilletool/` | The project's commands: build, test, check, release, site, notices, logo, shots. |
 
 ## Threads
 

@@ -8,7 +8,9 @@ It must not call the engine for it. The snapshot is that shape, made by the work
 ## Shape
 
 - `revision`: grows with each change of the document (open, edit, undo).
-- `pages`: one entry per page, in order: its identity, its size in points, its rotation in quarter turns.
+- `pages`: one entry per page, in order: its identity, its size in points as shown, the quarter turns feuille gave it,
+  its content version, and its stamps (each with its box as shares of the page shown, measured by the worker:
+  features/stamps.md).
 - `name`, `path`, `edited` (a change since the open or the last save), `can_undo`.
 
 ## Decisions

@@ -60,7 +60,7 @@ jobs:
           if-no-files-found: warn
 
   # Windows: odin check -vet, the tests (their frames on WARP, Direct3D's software renderer), a release build of the
-  # windows subsystem, the archive with pdfium.dll beside the program.
+  # windows subsystem, its archive.
   windows:
     name: Windows x64
     runs-on: windows-2025

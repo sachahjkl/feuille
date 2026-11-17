@@ -32,6 +32,9 @@ shot_start :: proc(t: ^testing.T, path: string, prefs: []string = nil) -> (s: ^s
 drawn :: proc(s: ^session.Session, app: ^App) -> bool { return pictures_ready(s, app) }
 
 @(private = "file")
+Shot_Revision :: struct { app: ^App, after: u64 }
+
+@(private = "file")
 save :: proc(s: ^session.Session, name: string) {
 	session.frames(s, 4)   // (what the last change set off settles: the halos, the fades)
 	session.save_png(s, name)
@@ -60,6 +63,19 @@ shots :: proc(t: ^testing.T) {
 		session.wait_until(s, app, drawn, "the form is drawn masked again")
 		session.key(s, .K, {.Ctrl})
 		save(s, "palette.png")
+		session.key(s, .Escape)
+		// the text tool: a name written in the form's empty field, on a yellow ground
+		page := session.get(s, fmt.tprintf("page%d", app.snapshot.pages[0].id))
+		k := app.main.state.scale
+		w, h := page.rect.max.x - page.rect.min.x, page.rect.max.y - page.rect.min.y
+		session.key(s, .T)
+		app.style = {size = 16, font = {family = .Serif, bold = true}, color = {29, 78, 216}, background = {253, 230, 138, 255}}
+		session.click_at(s, {(page.rect.min.x + 0.36 * w) * k, (page.rect.min.y + 0.245 * h) * k})
+		session.type_text(s, "Camille Martin")
+		rev := app.snapshot.revision
+		session.key(s, .Return)
+		session.wait_until(s, Shot_Revision{app, rev}, proc(s: ^session.Session, r: Shot_Revision) -> bool { return r.app.snapshot.revision > r.after && pictures_ready(s, r.app) }, "the text is on the page")
+		save(s, "text.png")
 		session.key(s, .Escape)
 		session.key(s, .Comma, {.Ctrl})
 		session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.settings_open }, "the settings open")

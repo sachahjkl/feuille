@@ -5,12 +5,11 @@
 ```sh
 git clone --recurse-submodules https://github.com/sachahjkl/feuille
 cd feuille
-nix develop        # the pinned Odin with wgpu-native, PDFium, Rust (the toolkit's text library), the git hooks
+nix develop        # the pinned Odin with wgpu-native, Rust (the toolkit's native library: text, PDF), the git hooks
 ```
 
 Without Nix: Odin `dev-2026-11a` (`odin.version`), clang and lld, cargo, wgpu-native's static library in Odin's
-`vendor/wgpu/lib` (`odin run ext/gui_toolkit/tools/tk -- fetch_wgpu`), fontconfig, and `libpdfium.so` of
-[pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) (chromium/8152) on the library path.
+`vendor/wgpu/lib` (`odin run ext/gui_toolkit/tools/tk -- fetch_wgpu`), fontconfig.
 
 ## feuilletool
 
@@ -22,15 +21,14 @@ odin run tools/feuilletool -collection:gt=ext/gui_toolkit/src -out:build/feuille
 
 | Command | What it does |
 |---|---|
-| `build [release]` | the toolkit's text library when its sources changed, then `build/feuille` (debug; `release`: optimised) |
-| `test [names]` | the tests of `src`, `src/pdf` and the tool, with no window of the system |
+| `build [release]` | the toolkit's native library (text, PDF) when its sources changed, then `build/feuille` (debug; `release`: optimised) |
+| `test [names]` | the tests of `src` and the tool, with no window of the system |
 | `check` | the changelog and the roadmap, the scopes, `odin check -vet` for this system, Windows and macOS and of the tool, the tests, a release build |
 | `changelog new <type> <text>`, `check`, `preview` | a fragment of `changelog.d/`, their check, what the next version brings |
 | `logo` | `assets/logo*.png`, `assets/feuille.ico` and `.project/image.png`, drawn by the toolkit's paint package |
-| `notices [--check]` | `THIRD-PARTY-NOTICES`: the licences of the toolkit, its fonts and icons, Odin's core library, wgpu-native, PDFium; `check` checks it is up to date |
+| `notices [--check]` | `THIRD-PARTY-NOTICES`: the licences of the toolkit, its fonts and icons, Odin's core library, wgpu-native, the native library's crates (hayro among them); `check` checks it is up to date |
 | `site build\|check\|card` | the site; `check` also checks that each system's browser is offered its own download |
 | `i18n fr [-check]` | `i18n/fr.txt` from the code's texts |
-| `bench` | PDFium and hayro (`tools/bench/hayro`, needs cargo) on a pinned corpus of hard PDFs: `build/bench/report.md`, Linux only |
 
 `build`, `test` and `check` are gui_toolkit's (`toolbox.build_commands`). `GT=<folder>` builds against another checkout
 of gui_toolkit.

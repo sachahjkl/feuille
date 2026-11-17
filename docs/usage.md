@@ -47,12 +47,13 @@ selects it and opens its menu: the edits below, Copy the path (Ctrl+Shift+C), Sh
 A saved copy has no password and no restriction. Leaving a document with unsaved edits (another file, Quit, closing
 the window) asks first.
 
-## Change the words
+## Put text on a page
 
-Double-click a text block (or F2, then a click): a field opens over it with its words. Enter changes them, Escape gives
-up; Ctrl+Z undoes the change. What can be changed:
+Press T (or the toolbar's T), then click where the text goes: a field opens there. Type, then Enter; Escape gives up.
+The toolbar shows the style while the tool is on: the family (sans, serif, mono), bold, italic, the size, the colour of
+the words and of their background (none, white, yellow, black). A click on a text already put opens it again; empty
+it to remove it. Each text turns, moves and goes with its page, and Ctrl+Z undoes it.
 
-- Text that is text in the PDF. A scanned page or letters drawn as shapes are pictures: there is nothing to edit.
-- The letters its font has. Many PDFs embed only the letters they use: a new letter may not show; feuille says so when
-  the field opens.
-- No reflow: longer words run past the block; the lines around do not move.
+- The fonts are PDF's own (Helvetica, Times, Courier): every reader shows them, nothing is embedded.
+- They hold the characters of Western European languages; another character is written as "?".
+- The text goes on top of the page: a background hides what is under it. The document's own words do not change.

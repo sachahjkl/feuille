@@ -10,6 +10,9 @@ fr Document
 en Save a copy…
 fr Enregistrer une copie…
 
+en Print…
+fr Imprimer…
+
 en Save this page as a PDF…
 fr Enregistrer cette page en PDF…
 
@@ -46,8 +49,8 @@ fr Monter la page
 en Move the page down
 fr Descendre la page
 
-en Edit a text block (click it)
-fr Modifier un bloc de texte (cliquez dessus)
+en Put text on a page (click where)
+fr Poser du texte sur une page (cliquer à l'endroit voulu)
 
 en Show the form layer
 fr Afficher la couche formulaire
@@ -190,8 +193,8 @@ fr page %d
 en Add the pages of a PDF
 fr Ajouter les pages d'un PDF
 
-en Click a text block to change its words; Escape leaves
-fr Cliquez sur un bloc de texte pour changer ses mots ; Échap pour sortir
+en Click where the text goes, or on a text to change it; Escape leaves
+fr Cliquez où va le texte, ou sur un texte pour le changer ; Échap pour sortir
 
 en Feuille's keys
 fr Les touches de Feuille
@@ -229,11 +232,14 @@ fr Page enregistrée sous %s
 en Saved %s
 fr %s enregistré
 
-en No text there: a picture or drawn letters cannot be edited
-fr Pas de texte ici : une image ou des lettres dessinées ne se modifient pas
+en Sent to the printer
+fr Envoyé à l'imprimante
 
-en This text's font holds only the letters the document used: a new letter may not show
-fr La police de ce texte ne contient que les lettres utilisées par le document : une nouvelle lettre peut ne pas s'afficher
+en Printing is not available here
+fr L'impression n'est pas disponible ici
+
+en The document could not be printed
+fr Le document n'a pas pu être imprimé
 
 en %s cannot be opened: %s
 fr %s ne peut pas être ouvert : %s
@@ -241,8 +247,11 @@ fr %s ne peut pas être ouvert : %s
 en Feuille in the terminal (on the PATH)
 fr Feuille dans le terminal (dans le PATH)
 
-en The desktop's launcher cannot be changed: %s
-fr Le lanceur du bureau ne peut pas être modifié : %s
+en Open PDF files with Feuille (in Open with)
+fr Ouvrir les fichiers PDF avec Feuille (dans « Ouvrir avec »)
+
+en Feuille opens PDF files by default
+fr Feuille ouvre les fichiers PDF par défaut
 
 en No browser opens %s
 fr Aucun navigateur n'ouvre %s
@@ -391,8 +400,8 @@ fr Sa protection est d'un type que ce programme ne connaît pas.
 en The password is wrong.
 fr Le mot de passe est faux.
 
-en The PDF engine (libpdfium) is not installed.
-fr Le moteur PDF (libpdfium) n'est pas installé.
+en This build of the program has no PDF engine.
+fr Cette version du programme n'a pas de moteur PDF.
 
 en The PDF engine refused it.
 fr Le moteur PDF l'a refusé.
@@ -409,8 +418,29 @@ fr Mot de passe faux
 en Cancel
 fr Annuler
 
-en Words
-fr Mots
+en Sans
+fr Sans
+
+en Serif
+fr Serif
+
+en Mono
+fr Mono
+
+en Bold
+fr Gras
+
+en Italic
+fr Italique
+
+en Text colour
+fr Couleur du texte
+
+en Background
+fr Fond
+
+en Text to put on the page
+fr Texte à poser sur la page
 
 en Thumbnails
 fr Vignettes

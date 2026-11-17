@@ -1,15 +1,15 @@
 package feuille
 
 // The edits in the window, end to end: the keys, the worker, the snapshot that comes back, undo and redo, the saved
-// copy, the text of a block, a thumbnail dragged, the question before edits are lost.
+// copy, text put on a page, a thumbnail dragged, the question before edits are lost.
 
 import "core:fmt"
 import "core:os"
 import "core:slice"
+import "core:strings"
 import "core:testing"
 import "gt:testkit"
 import session "gt:testkit/session"
-import fixture "fixture"
 
 // Pages told apart by their widths.
 @(private = "file")
@@ -127,35 +127,52 @@ a_dragged_thumbnail_moves_its_page :: proc(t: ^testing.T) {
 	expect_widths(t, app, {210, 220, 200})
 }
 
+// The text tool: a click places a stamp, Enter puts it on the page (its box comes back in the snapshot, where it was
+// clicked), a click on it opens it again with its words, and the saved copy holds it.
 @(test)
-a_text_block_is_changed_in_place :: proc(t: ^testing.T) {
-	dir := testkit.temp_folder(t, "feuille-text")
-	path := fmt.tprintf("%s/form.pdf", dir)
-	testing.expect(t, os.write_entire_file(path, fixture.make_sample(context.temp_allocator)) == nil)
-	s, app := start(t, path)
-	session.wait_until(s, app, pictures_ready, "the form is drawn")
+text_is_put_on_a_page_and_saved :: proc(t: ^testing.T) {
+	s, app := start(t, three_pages(t))
+	session.wait_until(s, app, pictures_ready, "the document is drawn")
 	page := session.get(s, fmt.tprintf("page%d", app.snapshot.pages[0].id))
 	k := app.main.state.scale
 	w, h := page.rect.max.x - page.rect.min.x, page.rect.max.y - page.rect.min.y
-	// "Full name", at (64, 624) on a page of 595 x 842 points
-	at := [2]f32{(page.rect.min.x + (64 + 12) / 595.0 * w) * k, (page.rect.min.y + (1 - (624 + 3) / 842.0) * h) * k}
-	session.click_at(s, at, count = 2)
-	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.text.open }, "the field opens over the block")
-	testing.expect_value(t, app.text.before, "Full name")
-	session.key(s, .A, {.Ctrl})
-	session.type_text(s, "Nom complet")
+	at := [2]f32{(page.rect.min.x + 0.25 * w) * k, (page.rect.min.y + 0.3 * h) * k}
+	session.key(s, .T)
+	testing.expect(t, app.text_mode, "T turns the text tool on")
+	app.style.background = {0, 0, 0, 255}
+	session.click_at(s, at)
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.text.open }, "the field opens where it was clicked")
+	session.type_text(s, "Paid")
 	rev := app.snapshot.revision
 	session.key(s, .Return)
-	next_snapshot(s, app, rev, "the words changed")
-	testing.expect(t, app.snapshot.edited, "edited")
-	testing.expect_value(t, app.snapshot.pages[0].version, 1)
+	next_snapshot(s, app, rev, "the text put on the page")
+	stamps := app.snapshot.pages[0].stamps
+	testing.expect_value(t, len(stamps), 1)
+	testing.expect_value(t, stamps[0].stamp.text, "Paid")
+	b := stamps[0].box
+	testing.expectf(t, abs(b[0] - 0.25) < 0.01 && abs(b[1] - 0.3) < 0.01 && b[2] > b[0] && b[3] > b[1], "its box starts where it was clicked (%v)", b)
+	testing.expect(t, app.snapshot.edited && app.snapshot.pages[0].version == 1, "edited, the page drawn again")
 
-	// the same place again reads the new words
-	session.click_at(s, at, count = 2)
-	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.text.open }, "the field opens again")
-	testing.expect_value(t, app.text.before, "Nom complet")
+	// a click on it opens it with its words; new words replace them
+	session.click_at(s, at + {2, 2} * k)
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.text.open }, "the field opens on the text")
+	testing.expect_value(t, app.text.before, "Paid")
+	session.key(s, .A, {.Ctrl})
+	session.type_text(s, "Paid in full")
+	rev = app.snapshot.revision
+	session.key(s, .Return)
+	next_snapshot(s, app, rev, "the words changed")
+	testing.expect_value(t, app.snapshot.pages[0].stamps[0].stamp.text, "Paid in full")
+
+	// saved, opened again: the text is part of the page
+	dir := testkit.temp_folder(t, "feuille-stamp")
+	path := fmt.tprintf("%s/stamped.pdf", dir)
+	worker_edit(&app.worker, edit_ask_make(&app.worker, .Save, path = path))
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.snapshot != nil && !app.snapshot.edited }, "saved")
+	data, err := os.read_entire_file_from_path(path, context.temp_allocator)
+	testing.expect(t, err == nil && strings.contains(string(data), "Paid in full"), "the saved copy holds the words")
 	session.key(s, .Escape)
-	testing.expect(t, !app.text.open, "Escape gives up")
+	testing.expect(t, !app.text_mode, "Escape leaves the tool")
 }
 
 @(test)

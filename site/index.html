@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Feuille: open a PDF at once, arrange its pages, change its words</title>
-<meta name="description" content="Open a PDF at once, arrange its pages, change its words.">
+<title>Feuille: open a PDF at once, arrange its pages, put text on them</title>
+<meta name="description" content="Open a PDF at once, arrange its pages, put text on them.">
 <link rel="icon" href="img/logo.png">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -19,7 +19,7 @@
   <section class="hero">
     <img class="mark" src="img/logo.png" alt="Feuille logo" width="112" height="112">
     <h1>Feuille</h1>
-    <p class="lead">Open a PDF at once, arrange its pages, change its words.</p>
+    <p class="lead">Open a PDF at once, arrange its pages, put text on them.</p>
     <div class="actions">
       <!-- download -->
       <a class="btn" href="https://github.com/sachahjkl/feuille">Source on GitHub</a>
@@ -53,9 +53,10 @@
         of ten, and the window never waits.</p>
     </article>
     <article class="card">
-      <h3>Pages and words</h3>
-      <p>Turn, add, remove and reorder pages (drag their thumbnails), take one out as its own PDF, change the words of
-        a text block. Every edit undoes; a copy is saved without a password. One version, everything in it.</p>
+      <h3>Pages and text</h3>
+      <p>Turn, add, remove and reorder pages (drag their thumbnails), take one out as its own PDF, put text on a page
+        in the font and colours you choose, print. Every edit undoes; a copy is saved without a password. One version,
+        everything in it.</p>
     </article>
     <article class="card">
       <h3>Keyboard first</h3>
@@ -66,6 +67,7 @@
   <!-- whats-new -->
 
   <section class="gallery">
+    <figure class="shot"><a class="frame" href="img/text.png"><img src="img/text.png" alt="A name written in a form's empty field, on a yellow ground" loading="lazy"></a><figcaption>Text put on a page</figcaption></figure>
     <figure class="shot"><a class="frame" href="img/layer.png"><img src="img/layer.png" alt="The same form with its fields, signature box and note drawn" loading="lazy"></a><figcaption>The form layer, on demand</figcaption></figure>
     <figure class="shot"><a class="frame" href="img/palette.png"><img src="img/palette.png" alt="The command palette" loading="lazy"></a><figcaption>Every command at Ctrl+K</figcaption></figure>
     <figure class="shot"><a class="frame" href="img/light.png"><img src="img/light.png" alt="Feuille in its light theme" loading="lazy"></a><figcaption>Feuille light</figcaption></figure>
@@ -76,18 +78,18 @@
     <div class="cols">
       <div class="well">
         <h3>Linux</h3>
-        <p>One program for Linux x64, Wayland or X11, with PDFium beside it. It needs Vulkan and fontconfig.</p>
+        <p>One program for Linux x64, Wayland or X11, nothing beside it. It needs Vulkan and fontconfig.</p>
         <code><a href="https://github.com/sachahjkl/feuille/releases/download/v{{version}}/feuille-{{version}}-linux-x64.tar.gz">feuille-{{version}}-linux-x64.tar.gz</a></code>
       </div>
       <div class="well">
         <h3>Nix</h3>
-        <p>The flake builds Feuille from source with everything it needs, PDFium included:
+        <p>The flake builds Feuille from source with everything it needs:
           <code>nix run github:sachahjkl/feuille</code>, or add <code>packages.x86_64-linux.default</code> to your configuration.</p>
         <code>nix profile add github:sachahjkl/feuille</code>
       </div>
       <div class="well">
         <h3>Windows</h3>
-        <p>One program for Windows 10 and 11 (x64), with PDFium beside it. Unzip it and start <code>feuille.exe</code>.</p>
+        <p>One program for Windows 10 and 11 (x64), nothing beside it. Unzip it and start <code>feuille.exe</code>.</p>
         <code><a href="https://github.com/sachahjkl/feuille/releases/download/v{{version}}/feuille-{{version}}-windows-x64.zip">feuille-{{version}}-windows-x64.zip</a></code>
       </div>
     </div>

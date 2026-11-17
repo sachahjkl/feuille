@@ -1,8 +1,9 @@
 package feuille
 
-// The document's worker: one thread owns the engine and the open document (src/md/infrastructure/pdfium.md). The
-// interface's thread leaves asks in the mailbox and pokes the job; the worker posts its answers back (ui.post), each a
-// heap value the posted call frees. Nothing here runs on the interface's thread but the asks and worker_stop.
+// The document's worker: one thread holds the list of pages and the files it reads from
+// (src/md/infrastructure/engine.md). The interface's thread leaves asks in the mailbox and pokes the job; the worker
+// posts its answers back (ui.post), each a heap value the posted call frees. Nothing here runs on the interface's
+// thread but the asks and worker_stop.
 //
 // A run takes the whole mailbox, then: the newest open (which drops the edits asked before it: they named the old
 // document), the edits in the order they were asked, one snapshot if anything changed, the renders (a newer list or an
@@ -12,17 +13,26 @@ import "base:runtime"
 import "core:os"
 import "core:strings"
 import "core:sync"
+import pdf "gt:pdf"
+import "gt:platform"
 import "gt:tasks"
 import "gt:ui"
-import pdf "pdf"
 
-// A page as the interface knows it: its identity for good, its size in points as shown, its /Rotate in quarter turns,
-// and the version of its content (a turn or a text edit moves it: the pictures of another version are stale).
+// A stamp as the interface knows it: its place on the page shown (shares of its size: x0, y0, x1, y1), and its style
+// and words (the words the snapshot's).
+Snapshot_Stamp :: struct {
+	box:   [4]f32,
+	stamp: pdf.Stamp,
+}
+
+// A page as the interface knows it: its identity for good, its size in points as shown, the quarter turns feuille gave
+// it, the version of its content (a turn or a stamp moves it: the pictures of another version are stale), its stamps.
 Snapshot_Page :: struct {
 	id:       u64,
 	size:     [2]f32,
 	rotation: int,
 	version:  u64,
+	stamps:   []Snapshot_Stamp,
 }
 
 // The document's shape after a change (src/md/data/snapshot.md). Immutable once posted; snapshot_free frees it.
@@ -39,6 +49,10 @@ Snapshot :: struct {
 snapshot_free :: proc(s: ^Snapshot) {
 	if s == nil { return }
 	delete(s.path)
+	for p in s.pages {
+		for st in p.stamps { delete(st.stamp.text) }
+		delete(p.stamps)
+	}
 	delete(s.pages)
 	free(s)
 }
@@ -61,10 +75,21 @@ Picture :: struct {
 	user:      rawptr,
 }
 
+// Why an open failed.
+Open_Error :: enum u8 {
+	None,
+	File,         // the file cannot be read
+	Format,       // not a PDF, or damaged
+	Password,     // a password is needed, or the one given is wrong
+	Security,     // an encryption the engine does not know
+	Failed,       // the engine failed on it
+	Unavailable,  // this build has no engine
+}
+
 // Why an open failed, posted to the interface.
 Open_Failure :: struct {
 	path:  string,
-	error: pdf.Error,
+	error: Open_Error,
 	user:  rawptr,
 }
 
@@ -76,14 +101,6 @@ Saved :: struct {
 	user:    rawptr,
 }
 
-// The block of text under a point, or none (`found` false), for the text edit.
-Text_Found :: struct {
-	id:     u64,
-	found:  bool,
-	block:  pdf.Text_Block,   // (its strings the payload's)
-	user:   rawptr,
-}
-
 // What the worker posts, and to whom: the program's procedures, each given its payload (`user` inside it).
 Worker_Answers :: struct {
 	state:   ^ui.State,
@@ -92,7 +109,8 @@ Worker_Answers :: struct {
 	failed:  ui.Post_Proc,   // data: ^Open_Failure
 	picture: ui.Post_Proc,   // data: ^Picture
 	saved:   ui.Post_Proc,   // data: ^Saved
-	text:    ui.Post_Proc,   // data: ^Text_Found
+	printed: ui.Post_Proc,   // data: ^Printed
+	window:  ^platform.Window,   // the owner of the print dialog
 }
 
 Opened :: struct {
@@ -100,31 +118,25 @@ Opened :: struct {
 	user:     rawptr,
 }
 
-// A hit test of text asked: page `id`, at `at` (shares of the page shown).
-Text_Ask :: struct {
-	id: u64,
-	at: [2]f32,
-}
-
 Worker :: struct {
 	answers:   Worker_Answers,
 	pool:      tasks.Pool,
+	printing:  tasks.Pool,   // a print: its dialog waits for the person, so it never holds the document's thread
 	job:       tasks.Job,
 	lock:      sync.Mutex,
-	// the mailbox, under `lock`: the newest open, the edits in order, the newest list of renders, the newest hit test
+	// the mailbox, under `lock`: the newest open, the edits in order, the newest list of renders
 	open_asked:    bool,
 	open_path:     string,
 	open_password: string,
 	edits_asked:   [dynamic]Edit_Ask,
 	render_asked:  bool,
 	renders:       [dynamic]Render_Ask,
-	text_asked:    bool,
-	text_ask:      Text_Ask,
 	// the worker's own, on its thread only
-	doc:       pdf.Document,
+	base:      pdf.Source,          // the file opened
+	sources:   [dynamic]pdf.Source, // the files imported since (their pages may come back with an undo)
 	has_doc:   bool,
 	path:      string,
-	ids:       [dynamic]u64,
+	pages:     [dynamic]Doc_Page,
 	next_id:   u64,
 	revision:  u64,
 	edits:     Edits,
@@ -137,27 +149,47 @@ worker_start :: proc(w: ^Worker, answers: Worker_Answers) {
 	context.allocator = w.allocator
 	w.renders = make([dynamic]Render_Ask)
 	w.edits_asked = make([dynamic]Edit_Ask)
-	w.ids = make([dynamic]u64)
+	w.pages = make([dynamic]Doc_Page)
+	w.sources = make([dynamic]pdf.Source)
 	w.edits.versions = make(map[u64]u64)
 	w.job = {work = worker_run, data = w}
 	tasks.start(&w.pool, {threads = 1})
+	tasks.start(&w.printing, {threads = 1})
 }
 
-// Stops the thread, then closes the documents from here: the engine is ours once the thread is gone.
+// A print's work on the printing thread (print.odin).
+print_add :: proc(w: ^Worker, work: proc(data: rawptr), data: rawptr) {
+	tasks.add(&w.printing, work, data)
+}
+
+// Stops the thread, then lets the document go from here: the list is ours once the thread is gone.
 worker_stop :: proc(w: ^Worker) {
 	context.allocator = w.allocator
 	tasks.stop(&w.pool)
-	pdf.claim()
-	if w.has_doc { pdf.close(&w.doc) }
+	tasks.stop(&w.printing)   // (a print under way ends first: its pages read the files closed below)
+	document_close(w)
 	edits_destroy(&w.edits)
 	for &a in w.edits_asked { edit_ask_free(&a) }
 	delete(w.edits_asked)
 	delete(w.open_path)
 	delete(w.open_password)
 	delete(w.renders)
-	delete(w.ids)
+	delete(w.pages)
+	delete(w.sources)
 	delete(w.path)
 	w^ = {}
+}
+
+// The document let go: its pages, their stamps, its edits, its files.
+@(private = "file")
+document_close :: proc(w: ^Worker) {
+	edits_reset(&w.edits)
+	for p in w.pages { stamps_free(p.page.stamps) }
+	clear(&w.pages)
+	for s in w.sources { pdf.close(s) }
+	clear(&w.sources)
+	if w.has_doc { pdf.close(w.base) }
+	w.base, w.has_doc = 0, false
 }
 
 // Asks to open `path` (password "": none). It replaces an open still waiting.
@@ -179,14 +211,23 @@ worker_edit :: proc(w: ^Worker, a: Edit_Ask) {
 }
 
 // An edit ask with its strings and ids copied for the worker.
-edit_ask_make :: proc(w: ^Worker, kind: Edit_Kind, id: u64 = 0, turns := 0, to := 0, object := 0, text := "", path := "", ids: []u64 = nil) -> Edit_Ask {
-	a := Edit_Ask{kind = kind, id = id, turns = turns, to = to, object = object}
+edit_ask_make :: proc(w: ^Worker, kind: Edit_Kind, id: u64 = 0, turns := 0, to := 0, text := "", path := "", ids: []u64 = nil) -> Edit_Ask {
+	a := Edit_Ask{kind = kind, id = id, turns = turns, to = to}
 	a.text = strings.clone(text, w.allocator)
 	a.path = strings.clone(path, w.allocator)
 	if ids != nil {
 		a.ids = make([]u64, len(ids), w.allocator)
 		copy(a.ids, ids)
 	}
+	return a
+}
+
+// A stamp's ask: stamp `index` of page `id` (-1: a new one at `at`) set to `style` with `text` ("": removed); `moved`:
+// to `at` (shares of the page shown).
+stamp_ask_make :: proc(w: ^Worker, id: u64, index: int, style: pdf.Stamp, text: string, at: [2]f32 = {}, moved := false) -> Edit_Ask {
+	a := edit_ask_make(w, .Stamp, id = id, text = text)
+	a.index, a.stamp, a.at, a.moved = index, style, at, moved
+	a.stamp.text = ""
 	return a
 }
 
@@ -199,18 +240,10 @@ worker_render :: proc(w: ^Worker, asks: []Render_Ask) {
 	tasks.job_ask(&w.pool, &w.job)
 }
 
-// Asks which text block is under `at` of page `id`.
-worker_text_at :: proc(w: ^Worker, id: u64, at: [2]f32) {
-	sync.guard(&w.lock)
-	w.text_ask, w.text_asked = {id, at}, true
-	tasks.job_ask(&w.pool, &w.job)
-}
-
 @(private = "file")
 worker_run :: proc(data: rawptr) {
 	w := (^Worker)(data)
 	context.allocator = w.allocator
-	found := pdf.init()   // (the engine's thread is this one: init claims it)
 
 	sync.lock(&w.lock)
 	open, path, password := w.open_asked, w.open_path, w.open_password
@@ -224,15 +257,13 @@ worker_run :: proc(data: rawptr) {
 		copy(renders[:], w.renders[:])
 		w.render_asked = false
 	}
-	text, text_ask := w.text_asked, w.text_ask
-	w.text_asked = false
 	sync.unlock(&w.lock)
 
 	if open {
 		defer delete(path)
 		defer delete(password)
 		// (the edits asked before it named the document it replaces)
-		if !found { post_failure(w, path, .No_Library) } else if open_now(w, path, password) {
+		if !pdf.available() { post_failure(w, path, .Unavailable) } else if open_now(w, path, password) {
 			for &a in edits { edit_ask_free(&a) }
 			clear(&edits)
 		}
@@ -246,7 +277,6 @@ worker_run :: proc(data: rawptr) {
 		w.revision += 1
 		post_snapshot(w, false)
 	}
-	if text { text_now(w, text_ask) }
 	for r in renders {
 		// (a newer list waits: this run ends, and the job runs again on it)
 		sync.lock(&w.lock)
@@ -264,26 +294,65 @@ open_now :: proc(w: ^Worker, path, password: string) -> bool {
 		post_failure(w, path, .File)
 		return false
 	}
-	doc, err := pdf.open(bytes, password, w.allocator)
+	src, err := pdf.open(bytes, password)
+	delete(bytes, w.allocator)   // (the engine keeps its own copy)
 	if err != .None {
-		delete(bytes, w.allocator)
-		post_failure(w, path, err)
+		post_failure(w, path, open_error(err))
 		return false
 	}
-	if w.has_doc { pdf.close(&w.doc) }
-	edits_reset(&w.edits)
-	w.doc, w.has_doc = doc, true
+	document_close(w)
+	w.base, w.has_doc = src, true
 	delete(w.path)
 	w.path = strings.clone(path)
 	w.revision += 1
-	n := pdf.page_count(doc)
-	clear(&w.ids)
-	for _ in 0 ..< n {
+	for i in 0 ..< pdf.page_count(src) {
 		w.next_id += 1
-		append(&w.ids, w.next_id)
+		append(&w.pages, Doc_Page{id = w.next_id, page = {source = src, index = i}})
 	}
 	post_snapshot(w, true)
 	return true
+}
+
+@(private = "file")
+open_error :: proc(e: pdf.Error) -> Open_Error {
+	switch e {
+	case .None:        return .None
+	case .Format:      return .Format
+	case .Password:    return .Password
+	case .Security:    return .Security
+	case .Failed:      return .Failed
+	case .Unavailable: return .Unavailable
+	}
+	return .Failed
+}
+
+// A stamp's box on the page shown, as shares: its corner turned with the page, its sides with the stamp and the page.
+@(private = "file")
+stamp_box :: proc(p: pdf.Page, s: pdf.Stamp, shown: [2]f32) -> [4]f32 {
+	k := ((p.turns % 4) + 4) % 4
+	size := k % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	a := s.at
+	corner: [2]f32
+	switch k {
+	case 1: corner = {size.y - a.y, a.x}
+	case 2: corner = {size.x - a.x, size.y - a.y}
+	case 3: corner = {a.y, size.x - a.x}
+	case:   corner = a
+	}
+	wh := pdf.stamp_size(s)
+	lo, hi := corner, corner
+	for c in ([4][2]f32{{0, 0}, {wh.x, 0}, {0, wh.y}, wh}) {
+		q: [2]f32
+		switch (s.turns + k) % 4 {
+		case 1: q = {-c.y, c.x}
+		case 2: q = {-c.x, -c.y}
+		case 3: q = {c.y, -c.x}
+		case:   q = c
+		}
+		lo, hi = {min(lo.x, corner.x + q.x), min(lo.y, corner.y + q.y)}, {max(hi.x, corner.x + q.x), max(hi.y, corner.y + q.y)}
+	}
+	if shown.x <= 0 || shown.y <= 0 { return {} }
+	return {lo.x / shown.x, lo.y / shown.y, hi.x / shown.x, hi.y / shown.y}
 }
 
 @(private = "file")
@@ -291,10 +360,18 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 	s := new(Snapshot)
 	s.revision, s.opened = w.revision, opened
 	s.path = strings.clone(w.path)
-	s.pages = make([]Snapshot_Page, len(w.ids))
-	for id, i in w.ids {
-		size, _ := pdf.page_size(w.doc, i)
-		s.pages[i] = {id = id, size = size, rotation = pdf.page_rotation(w.doc, i), version = w.edits.versions[id]}
+	s.pages = make([]Snapshot_Page, len(w.pages))
+	for e, i in w.pages {
+		shown := pdf.shown_size(e.page)
+		sp := Snapshot_Page{id = e.id, size = shown, rotation = e.page.turns, version = w.edits.versions[e.id]}
+		if len(e.page.stamps) > 0 {
+			sp.stamps = make([]Snapshot_Stamp, len(e.page.stamps))
+			for st, k in e.page.stamps {
+				sp.stamps[k] = {box = stamp_box(e.page, st, shown), stamp = st}
+				sp.stamps[k].stamp.text = strings.clone(st.text)
+			}
+		}
+		s.pages[i] = sp
 	}
 	s.edited = edit_state(&w.edits) != w.edits.saved
 	s.can_undo, s.can_redo = len(w.edits.undo) > 0, len(w.edits.redo) > 0
@@ -307,7 +384,7 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 }
 
 @(private = "file")
-post_failure :: proc(w: ^Worker, path: string, err: pdf.Error) {
+post_failure :: proc(w: ^Worker, path: string, err: Open_Error) {
 	f := new(Open_Failure)
 	f^ = {path = strings.clone(path), error = err, user = w.answers.user}
 	if !ui.post(w.answers.state, w.answers.failed, f) { open_failure_free(f) }
@@ -330,29 +407,10 @@ saved_free :: proc(s: ^Saved) {
 }
 
 @(private = "file")
-text_now :: proc(w: ^Worker, a: Text_Ask) {
-	if !w.has_doc { return }
-	t := new(Text_Found)
-	t.id, t.user = a.id, w.answers.user
-	for id, i in w.ids {
-		if id != a.id { continue }
-		t.block, t.found = pdf.text_at(&w.doc, i, a.at)
-		break
-	}
-	if !ui.post(w.answers.state, w.answers.text, t) { text_found_free(t) }
-}
-
-text_found_free :: proc(t: ^Text_Found) {
-	delete(t.block.text)
-	delete(t.block.font)
-	free(t)
-}
-
-@(private = "file")
 render_now :: proc(w: ^Worker, r: Render_Ask) {
 	// (an ask of another revision names pages that may have moved: the interface asks again with the new snapshot)
-	if !w.has_doc || r.revision != w.revision || r.index < 0 || r.index >= len(w.ids) || w.ids[r.index] != r.id { return }
-	rgba := pdf.render(&w.doc, r.index, r.size.x, r.size.y, r.layer)
+	if !w.has_doc || r.revision != w.revision || r.index < 0 || r.index >= len(w.pages) || w.pages[r.index].id != r.id { return }
+	rgba := pdf.render(w.pages[r.index].page, r.size.x, r.size.y, r.layer)
 	if rgba == nil { return }
 	p := new(Picture)
 	p^ = {ask = r, rgba = rgba, user = w.answers.user}

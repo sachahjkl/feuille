@@ -13,20 +13,16 @@ package feuille
 // `feuille --install`. One feuille runs per person: a second start hands its file to the first (app_message).
 
 import "base:runtime"
-import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:sync"
-import config "gt:config"
 import desktop "gt:desktop"
 import host "gt:host"
 import i18n "gt:i18n"
 import instance "gt:instance"
 import "gt:platform"
 import prefs_page "gt:prefs_page"
-import "gt:process"
 import setup "gt:setup"
-import tasks "gt:tasks"
 import "gt:ui"
 
 ICON_PNGS := [?]desktop.Icon{
@@ -57,21 +53,16 @@ feuille_identity :: proc() -> desktop.Identity {
 	return identity
 }
 
+// The files feuille opens: named always, whatever the boxes say (an install with the box off, and the uninstall, read
+// them to know what to take away).
+@(rodata) PDF_TYPES := [?]desktop.Document_Type{{extension = ".pdf", mime = "application/pdf", description = "PDF Document"}}
+
 // feuille's own parts of an install: the PATH (on Windows with feuille.com, the console launcher the toolkit's build
-// embeds: `feuille` typed in a terminal gives its output and exit code).
+// embeds: `feuille` typed in a terminal gives its output and exit code), and the PDF files it opens.
 feuille_parts :: proc(o: ^desktop.Integration_Options) {
 	o.add_to_path = true
-}
-
-// The running copy's integration (desktop_follow): the places of a test come from the environment.
-@(private = "file")
-integration_options :: proc() -> desktop.Integration_Options {
-	o := desktop.options_make(feuille_identity())
-	o.exe = process.executable_path()
-	o.icons = ICON_PNGS[:]
-	feuille_parts(&o)
-	desktop.roots_from_env(&o, env_lookup)
-	return o
+	o.document_types = PDF_TYPES[:]
+	o.open_documents = true
 }
 
 @(private = "file")
@@ -87,99 +78,36 @@ setup_options :: proc() -> setup.Setup_Options {
 		choices = SETUP_CHOICES[:], square = true, running = app_running, quit = app_quit,
 		prepare = proc(o: ^desktop.Integration_Options, choices: []bool, user: rawptr) {
 			feuille_parts(o)
-			if len(choices) == len(SETUP_CHOICES) { o.add_to_path = choices[SETUP_PATH] }
+			if len(choices) == len(SETUP_CHOICES) {
+				o.add_to_path = choices[SETUP_PATH]
+				o.open_documents = choices[SETUP_OPEN_PDF] || choices[SETUP_DEFAULT_PDF]
+				o.default_documents = choices[SETUP_DEFAULT_PDF]
+			}
 			desktop.roots_from_env(o, env_lookup)   // (a test's places: nothing of the person's)
 		},
 	}
 }
 
 // The boxes of the install's dialog, by index.
-SETUP_PATH :: 0
-// SETUP_OPEN_PDF: "Open PDF files with Feuille" (the PDF files' default application) comes here, its own index, once
-// gui_toolkit's desktop integration knows a file association (its roadmap). Until then the box is not offered: a box
-// that wrote nothing would lie.
+SETUP_PATH        :: 0
+SETUP_OPEN_PDF    :: 1   // in the file managers' Open with
+SETUP_DEFAULT_PDF :: 2   // the PDF files' application (Windows: its Default apps page opens, the person chooses there)
 
 // (not rodata: i18n.later marks the labels for the catalogue; tr where they are shown)
 // Each box is tied to its part: with an install there, it shows what the system has, and what is ticked is what
 // Install writes.
 @(private = "file")
-SETUP_CHOICES := [SETUP_CHOICE_COUNT]setup.Choice{
-	SETUP_PATH = {label = i18n.later("Feuille in the terminal (on the PATH)"), on = true, parts = {.Path}},
+SETUP_CHOICES := [?]setup.Choice{
+	SETUP_PATH        = {label = i18n.later("Feuille in the terminal (on the PATH)"), on = true, parts = {.Path}},
+	SETUP_OPEN_PDF    = {label = i18n.later("Open PDF files with Feuille (in Open with)"), on = true, parts = {.Documents}},
+	SETUP_DEFAULT_PDF = {label = i18n.later("Feuille opens PDF files by default"), on = false, parts = {.Default_Documents}},
 }
-@(private = "file") SETUP_CHOICE_COUNT :: SETUP_PATH + 1
 
-// Each frame: the install's dialog and page. An install or an uninstall changes which copy is integrated (the
-// settings' switches follow); the installed copy started takes over once this one ends.
+// Each frame: the install's dialog and page. The installed copy started takes over once this one ends. (The menu's
+// and the session's switches follow the installed copy by themselves: prefs_page.install_follow.)
 install_follow :: proc(app: ^App) {
-	#partial switch prefs_page.install_frame(&app.install) {
-	case .Installed, .Uninstalled: desktop_follow(app)
 	// (an edited document asks first, as a quit does; the installed copy starts at the end: app_close)
-	case .Launched:                leave_document(app, .Quit)
-	}
-}
-
-////////////////////////////////
-// The settings' general.menu and general.autostart (the toolkit's standard ones)
-
-// The install (its dialog, its page, `feuille --install`) integrates a copy; the settings then say whether that copy is
-// in the application menu and starts with the session, and desktop.apply makes it so. Only the integrated copy follows
-// them: a build or a copy that is not integrated (Nix's, which Nix integrates) never installs anything because of a
-// preference. So at the start, and after each change of the two, a task reads the integration's status: when its
-// parts are this copy's, it applies the two (the PATH stays as the install left it), and the settings show their
-// switches. `feuille --uninstall` and the Installation page's Uninstall take the whole install away.
-desktop_follow :: proc(app: ^App) {
-	if app.headless { return }   // (the tests touch nothing of the person's)
-	job := new(Desktop_Follow)
-	job^ = {app = app, menu = config.bool_of(&app.prefs, prefs_page.MENU_PREF), autostart = config.bool_of(&app.prefs, prefs_page.AUTOSTART_PREF)}
-	// (one thread: the changes in the order asked, so that the last one wins)
-	tasks.add(&app.desktop_pool, desktop_follow_run, job)
-}
-
-@(private = "file")
-Desktop_Follow :: struct {
-	app:        ^App,
-	menu:       bool,
-	autostart:  bool,
-	integrated: bool,     // the task's answer
-	failed:     string,   // owned: what desktop.apply said went wrong
-}
-
-@(private = "file")
-desktop_follow_run :: proc(data: rawptr) {
-	job := (^Desktop_Follow)(data)
-	o := integration_options()
-	st := desktop.status(&o, context.temp_allocator)
-	job.integrated = st.state != .Absent && st.error == .None && st.stale_exe == ""
-	if job.integrated {
-		// (the parts of the install's boxes stay as the install left them: only Install changes those)
-		o.add_to_path = st.parts[.Path].present
-		o.start_menu, o.autostart = job.menu, job.autostart
-		if r := desktop.apply(&o); r.error != .None {
-			job.failed = fmt.aprintf("%s %s", desktop.error_text(r.error), r.detail)
-		}
-	}
-	if !ui.post(&job.app.main.state, desktop_follow_done, job) {
-		delete(job.failed)
-		free(job)
-	}
-}
-
-@(private = "file")
-desktop_follow_done :: proc(data: rawptr, _: u64) {
-	job := (^Desktop_Follow)(data)
-	defer { delete(job.failed); free(job) }
-	app := job.app
-	desktop_owned_hide(&app.prefs, !job.integrated)
-	if job.failed != "" { say(app, i18n.tr("The desktop's launcher cannot be changed: %s"), job.failed) }
-	host.host_settle(&app.main)
-}
-
-// The menu's and the session's switches, hidden or shown.
-desktop_owned_hide :: proc(p: ^config.Prefs, hidden: bool) {
-	names := [?]string{prefs_page.MENU_PREF, prefs_page.AUTOSTART_PREF}
-	for name in names {
-		if r := config.ref_of(p, name); r != config.NO_REF { config.entry(p, r).def.hidden = hidden }
-	}
+	if prefs_page.install_frame(&app.install) == .Launched { leave_document(app, .Quit) }
 }
 
 ////////////////////////////////

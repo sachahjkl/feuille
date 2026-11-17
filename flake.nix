@@ -1,5 +1,5 @@
 {
-  description = "feuille: open a PDF at once, arrange its pages, change its words.";
+  description = "feuille: open a PDF at once, arrange its pages, put text on them.";
 
   inputs = {
     self.submodules = true;
@@ -45,32 +45,6 @@
       '';
     };
 
-    # PDFium, Chromium's PDF engine (BSD): the prebuilt library of bblanchon/pdfium-binaries. feuille opens it with
-    # dlopen (src/pdf), so a build needs none of it.
-    pdfium = pkgs.stdenv.mkDerivation {
-      pname = "pdfium";
-      version = "159.0.8152";
-      src = pkgs.fetchurl {
-        url = "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8152/pdfium-linux-x64.tgz";
-        sha256 = "384ab5c51882408a143a21f9c14dcd2caf1f75280ae41c554d0489b46c3dba9f";
-      };
-      sourceRoot = "."; # (the archive has no folder of its own)
-      nativeBuildInputs = [pkgs.autoPatchelfHook];
-      buildInputs = [pkgs.stdenv.cc.cc.lib];
-      dontBuild = true;
-      installPhase = ''
-        mkdir -p $out/lib $out/include
-        cp lib/libpdfium.so $out/lib/
-        cp -r include/. $out/include/
-      '';
-      meta = {
-        description = "PDFium, Chromium's PDF engine (prebuilt)";
-        homepage = "https://pdfium.googlesource.com/pdfium/";
-        license = lib.licenses.bsd3;
-        platforms = [system];
-      };
-    };
-
     runtime = with pkgs; [
       vulkan-loader
       mesa
@@ -83,7 +57,6 @@
       freetype
       dbus
       curl # (gt:http opens libcurl at run time)
-      pdfium
     ];
 
     # APP_VERSION of src/main.odin
@@ -100,18 +73,15 @@
         root = ./.;
         fileset = lib.fileset.difference ./. (lib.fileset.maybeMissing ./build);
       };
-      # the crates of the toolkit's text library, vendored: cargo makes no request
+      # the crates of the toolkit's native library (text, PDF), vendored: cargo makes no request
       cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./ext/gui_toolkit/native/gt/Cargo.lock;};
 
       nativeBuildInputs = [odin pkgs.cargo pkgs.rustc pkgs.clang pkgs.lld pkgs.autoPatchelfHook pkgs.copyDesktopItems];
       buildInputs = [pkgs.fontconfig pkgs.freetype pkgs.stdenv.cc.cc.lib];
-      # what it opens with dlopen (PDFium among them) goes in its RUNPATH; the Vulkan driver is the system's
+      # what it opens with dlopen goes in its RUNPATH; the Vulkan driver is the system's
       runtimeDependencies = runtime;
       # Odin links a foreign library as -l:<absolute path> with -L/, which the purity check of the linker wrapper drops
       NIX_ENFORCE_PURITY = 0;
-
-      # (feuilletool puts PDFium beside the program from there: Nix's sandbox has no network for the pinned archive)
-      PDFIUM_LIB = "${pdfium}/lib/libpdfium.so";
 
       configurePhase = ''
         runHook preConfigure
@@ -139,7 +109,7 @@
           name = "feuille";
           desktopName = "Feuille";
           genericName = "PDF Reader";
-          comment = "Open a PDF at once, arrange its pages, change its words.";
+          comment = "Open a PDF at once, arrange its pages, put text on them.";
           exec = "feuille %f";
           icon = "feuille";
           categories = ["Office" "Viewer"];
@@ -161,7 +131,7 @@
       '';
 
       meta = {
-        description = "Open a PDF at once, arrange its pages, change its words.";
+        description = "Open a PDF at once, arrange its pages, put text on them.";
         license = lib.licenses.mit;
         platforms = [system];
         mainProgram = "feuille";
@@ -179,7 +149,7 @@
     };
   in {
     packages.${system} = {
-      inherit feuille odin pdfium;
+      inherit feuille odin;
       default = feuille;
     };
     apps.${system}.default = {
@@ -188,19 +158,18 @@
     };
     checks.${system} = {
       pre-commit = preCommitCheck;
-      inherit feuille pdfium;
+      inherit feuille;
     };
     formatter.${system} = pkgs.alejandra;
 
     devShells.${system}.default = pkgs.mkShell {
-      # (cargo and rustc: the toolkit's text library)
+      # (cargo and rustc: the toolkit's native library)
       packages = [odin] ++ (with pkgs; [cargo rustc]) ++ preCommitCheck.enabledPackages;
       buildInputs = [pkgs.fontconfig];
       shellHook =
         preCommitCheck.shellHook
         + ''
           export LD_LIBRARY_PATH=${lib.makeLibraryPath runtime}
-          export PDFIUM_LIB=${pdfium}/lib/libpdfium.so
         '';
     };
   };

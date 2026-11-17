@@ -27,12 +27,6 @@ feuille --uninstall                              # takes it all away; the settin
 
 Feuille needs Vulkan (any driver, Mesa included), fontconfig and libxkbcommon.
 
-## The PDF engine of an install
-
-On both systems, the install copies the program alone: the PDF engine beside it in the archive (`libpdfium.so`, `pdfium.dll`) is not
-copied yet. Until the install takes it (ROADMAP.md), put it beside the installed program, or keep the copy where it was
-unpacked.
-
 ## The settings of an install
 
 Once the copy that runs is the installed one, the settings' General page shows two switches: In the applications menu
@@ -53,7 +47,7 @@ a document with unsaved edits asks first. New window (Ctrl+N) starts another Feu
 
 ## NixOS and home-manager
 
-The flake builds Feuille from source, with PDFium:
+The flake builds Feuille from source:
 
 ```nix
 # flake.nix of your system

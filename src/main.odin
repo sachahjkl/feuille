@@ -1,4 +1,4 @@
-// feuille: open a PDF at once, arrange its pages, change its words. src/md/README.md says how it is built.
+// feuille: open a PDF at once, arrange its pages, put text on them. src/md/README.md says how it is built.
 package feuille
 
 import "core:fmt"

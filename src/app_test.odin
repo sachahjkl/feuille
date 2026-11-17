@@ -12,7 +12,6 @@ import "gt:platform"
 import "gt:testkit"
 import session "gt:testkit/session"
 import fixture "fixture"
-import pdf "pdf"
 
 @(private = "file")
 BLUE  :: session.Color{0, 0, 255, 255}
@@ -91,6 +90,15 @@ the_blocked_document_opens_masked_in_the_window :: proc(t: ^testing.T) {
 	img = session.capture(s)
 	testing.expect_value(t, page_pixel(s, app, img, 0, centre(fixture.FIELD_RECT)), RED)
 	session.save_png(s, "layer.png")
+
+	// the saved copy has no protection: it opens with no password, its content kept
+	copy_path := fmt.tprintf("%s/open.pdf", testkit.temp_folder(t, "feuille-copy"))
+	worker_edit(&app.worker, edit_ask_make(&app.worker, .Save, path = copy_path))
+	session.wait_until(s, copy_path, proc(s: ^session.Session, p: string) -> bool { return os.exists(p) }, "the copy is written")
+	app_open_file(app, copy_path, "")
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.snapshot.path != "" && app.pending == .None && app.snapshot.opened && pictures_ready(s, app) }, "the copy opens without a password")
+	img = session.capture(s)
+	testing.expect_value(t, page_pixel(s, app, img, 0, centre(fixture.BASE_RECT)), BLUE)
 }
 
 @(test)
@@ -101,7 +109,7 @@ what_is_not_a_pdf_is_told :: proc(t: ^testing.T) {
 	testing.expect(t, os.write_entire_file(path, transmute([]u8)junk) == nil)
 	s, app := start(t, path)
 	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.failure != .None }, "the failure is told")
-	testing.expect_value(t, app.failure, pdf.Error.Format)
+	testing.expect_value(t, app.failure, Open_Error.Format)
 	session.wait_text(s, "notes.pdf cannot be opened")
 }
 

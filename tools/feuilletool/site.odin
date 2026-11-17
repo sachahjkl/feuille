@@ -24,7 +24,7 @@ SITE_LD :: [?][2]string{
 }
 
 site_meta :: proc() -> tk_site.Meta {
-	m := tk_site.meta_default(name = "Feuille", url = "https://feuille.froment.software/", repository = REPOSITORY, tagline = "Open a PDF at once, arrange its pages, change its words", theme = "#100d0b", accent = "#f59a3c")
+	m := tk_site.meta_default(name = "Feuille", url = "https://feuille.froment.software/", repository = REPOSITORY, tagline = "Open a PDF at once, arrange its pages, put text on them", theme = "#100d0b", accent = "#f59a3c")
 	@(static) ld := SITE_LD
 	m.ld_fields = ld[:]   // (static: the site command keeps the Meta as long as the tool runs)
 	m.shop = SHOP

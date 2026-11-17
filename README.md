@@ -2,7 +2,7 @@
 
 <h1 align="center">feuille</h1>
 
-<p align="center"><b>Open a PDF at once, arrange its pages, change its words.</b></p>
+<p align="center"><b>Open a PDF at once, arrange its pages, put text on them.</b></p>
 
 <p align="center">
 <a href="https://github.com/sachahjkl/feuille/actions/workflows/ci.yml"><img src="https://github.com/sachahjkl/feuille/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -19,12 +19,15 @@ want it. A protected PDF asks for its password in the window.
 | The form layer, on demand (Ctrl+L) | Every command at Ctrl+K |
 |---|---|
 | ![The same form with its fields drawn](docs/screenshots/layer.png) | ![The command palette](docs/screenshots/palette.png) |
+| **Text put on a page (T)** | **The password, in the window** |
+| ![A name written in the form's empty field, on a yellow ground, the style in the toolbar](docs/screenshots/text.png) | ![A protected PDF asks its password](docs/screenshots/locked.png) |
 | **The settings (Ctrl+,)** | **Light** |
 | ![The settings](docs/screenshots/settings.png) | ![The light theme](docs/screenshots/light.png) |
 
 One small native program, written in [Odin](https://odin-lang.org) on
-[gui_toolkit](https://github.com/sachahjkl/gui_toolkit), with Chromium's PDF engine,
-[PDFium](https://pdfium.googlesource.com/pdfium/). Windows and Linux. Its site:
+[gui_toolkit](https://github.com/sachahjkl/gui_toolkit), its PDF engine built in
+([hayro](https://github.com/LaurenzV/hayro), through the toolkit's `gt:pdf`): nothing ships beside it. Windows and
+Linux. Its site:
 [feuille.froment.software](https://feuille.froment.software/).
 
 ## Features
@@ -32,7 +35,8 @@ One small native program, written in [Odin](https://odin-lang.org) on
 - **Nothing blocks the page**: the signatures, annotations and form fields stay hidden unless you ask (Ctrl+L).
 - **Arrange the pages**: turn, add, remove, reorder them (drag their thumbnails), add the pages of another PDF, take one
   out as its own PDF. Every edit undoes and redoes; a copy is saved, the original replaced only after a question.
-- **Change the words** of a text block (double click, or F2 then a click).
+- **Put text on a page** (T, then a click): a name, a date, a note, in a font, size and colour you choose, on a
+  background that can hide what is under it.
 - **Fast**: only the pages near the view are drawn, on a thread of their own. A long document scrolls as a short one,
   and the window never waits.
 - **It remembers**: each PDF opens again at its page and its zoom; the last one comes back at the start; the recent
@@ -67,13 +71,13 @@ One version, everything in it; a licence only says you support it. What comes ne
 
 ## Install
 
-- Windows 10 and 11, Linux: the archive of a [release](https://github.com/sachahjkl/feuille/releases), PDFium beside
-  the program. Unpack it and start it; `feuille --install` installs it for you ([docs/desktop.md](docs/desktop.md)).
+- Windows 10 and 11, Linux: the archive of a [release](https://github.com/sachahjkl/feuille/releases): one program,
+  nothing beside it to install. Unpack it and start it; `feuille --install` installs it for you ([docs/desktop.md](docs/desktop.md)).
 - Nix: `nix run github:sachahjkl/feuille -- file.pdf`, or `nix profile add github:sachahjkl/feuille`.
 
 ## Documentation
 
-- [Usage](docs/usage.md): reading, arranging, changing the words.
+- [Usage](docs/usage.md): reading, arranging, putting text on a page.
 - [Configuration](docs/configuration.md): every preference.
 - [The desktop](docs/desktop.md): the install, the menu, one window.
 - [Architecture](docs/architecture.md): the files, the threads and the tests.
@@ -92,5 +96,5 @@ Every step of the project is a command of `tools/feuilletool`: see [docs/develop
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). PDFium is under the BSD licence; the Lucide icons under the ISC licence.
+MIT, see [LICENSE](LICENSE). hayro is under the MIT or Apache-2.0 licence; the Lucide icons under the ISC licence.
 THIRD-PARTY-NOTICES lists every work the program holds.

@@ -16,7 +16,7 @@ import lucide "gt:lucide"
 import prefs_page "gt:prefs_page"
 import "gt:render"
 import "gt:ui"
-import pdf "pdf"
+import pdf "gt:pdf"
 
 // The pages built beyond the view, above and below, in views' heights: their pictures are ready when they come in.
 VIEW_AHEAD :: 1.0
@@ -176,6 +176,7 @@ build_tools :: proc(app: ^App, em: f32) {
 		tool(app, .Extract_Page, em)
 		ui.space(ui.CONTROL_GAP)
 		tool(app, .Edit_Text, em)
+		if app.text_mode { stamp_style_bar(app, em) }
 		tool(app, .Layer, em)
 		ui.spacer(ui.fill())
 		tool(app, .Zoom_Out, em)
@@ -232,15 +233,15 @@ empty_view :: proc(app: ^App) {
 	if ui.empty_state("###empty", e) == 0 { action_run(app, .Open) }
 }
 
-failure_text :: proc(e: pdf.Error) -> string {
+failure_text :: proc(e: Open_Error) -> string {
 	switch e {
-	case .None:           return ""
-	case .File:           return i18n.tr("The file cannot be read.")
-	case .Format:         return i18n.tr("It is not a PDF, or it is damaged.")
-	case .Security:       return i18n.tr("Its protection is of a kind this program does not know.")
-	case .Password:       return i18n.tr("The password is wrong.")
-	case .No_Library:     return i18n.tr("The PDF engine (libpdfium) is not installed.")
-	case .Unknown, .Page: return i18n.tr("The PDF engine refused it.")
+	case .None:        return ""
+	case .File:        return i18n.tr("The file cannot be read.")
+	case .Format:      return i18n.tr("It is not a PDF, or it is damaged.")
+	case .Security:    return i18n.tr("Its protection is of a kind this program does not know.")
+	case .Password:    return i18n.tr("The password is wrong.")
+	case .Unavailable: return i18n.tr("This build of the program has no PDF engine.")
+	case .Failed:      return i18n.tr("The PDF engine refused it.")
 	}
 	return ""
 }
@@ -288,7 +289,80 @@ password_view :: proc(app: ^App, em: f32) {
 	}
 }
 
-// What a page's box draws: its sheet and a soft shadow, its picture when it has one, a ring when it is selected.
+// The text tool's style, while it is on: the family, bold and italic, the size, the colour of the words and of their
+// background (src/md/features/stamps.md). It applies to the stamp being written and to the next ones.
+@(private = "file")
+stamp_style_bar :: proc(app: ^App, em: f32) {
+	s := &app.style
+	ui.space(ui.CONTROL_GAP)
+	family := int(s.font.family)
+	ui.next({height = ui.px(em * TOOL_EM)})
+	if ui.segmented("###stamp_family", {i18n.tr("Sans"), i18n.tr("Serif"), i18n.tr("Mono")}, &family) { s.font.family = pdf.Family(family) }
+	ui.space(ui.ICON_GAP)
+	style_toggle :: proc(id, glyph, tip: string, on: ^bool, em: f32) {
+		ui.next({width = ui.px(em * TOOL_EM), height = ui.px(em * TOOL_EM), radius = em * 0.4})
+		if ui.button(id, icon = glyph, o = {tip = tip, icon_font = ui.lucide_icons(), lit = on^}).clicked { on^ = !on^ }
+	}
+	style_toggle("stamp_bold", lucide.BOLD, i18n.tr("Bold"), &s.font.bold, em)
+	style_toggle("stamp_italic", lucide.ITALIC, i18n.tr("Italic"), &s.font.italic, em)
+	ui.space(ui.ICON_GAP)
+	size := int(s.size)
+	ui.next({width = ui.px(em * 7.5), height = ui.px(em * TOOL_EM)})
+	if ui.number("###stamp_size", &size, 4, 144, unit = "pt") { s.size = f32(size) }
+	ui.space(ui.CONTROL_GAP)
+	for c, i in STAMP_INKS { swatch(fmt.tprintf("###ink%d", i), {c[0], c[1], c[2], 255}, s.color == c, false, em, i18n.tr("Text colour"), &s.color, c, nil) }
+	ui.space(ui.ICON_GAP)
+	for c, i in STAMP_GROUNDS { swatch(fmt.tprintf("###ground%d", i), c, s.background == c, true, em, i18n.tr("Background"), nil, {}, &s.background) }
+}
+
+// The colours of a stamp's words, and of its background (alpha 0: none).
+@(private = "file", rodata) STAMP_INKS := [?][3]u8{{0, 0, 0}, {29, 78, 216}, {185, 28, 28}, {255, 255, 255}}
+@(private = "file", rodata) STAMP_GROUNDS := [?][4]u8{{0, 0, 0, 0}, {255, 255, 255, 255}, {253, 230, 138, 255}, {0, 0, 0, 255}}
+
+@(private = "file")
+Swatch_Draw :: struct {
+	color:  draw.Color,
+	chosen: bool,
+	none:   bool,   // the colour "none": a white square with a red diagonal
+	accent: draw.Color,
+	edge:   draw.Color,
+	scale:  f32,
+}
+
+@(private = "file")
+swatch_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
+	d := (^Swatch_Draw)(user)
+	r := b.rect
+	inset := 4 * d.scale
+	inner := draw.Rect{r.min + inset, r.max - inset}
+	if d.none {
+		draw.rect(dc, inner, draw.WHITE, radius = 2 * d.scale)
+		draw.line(dc, {inner.min.x, inner.max.y}, {inner.max.x, inner.min.y}, 1.5 * d.scale, {0.8, 0.1, 0.1, 1})
+	} else {
+		draw.rect(dc, inner, d.color, radius = 2 * d.scale)
+	}
+	draw.rect(dc, inner, d.edge, radius = 2 * d.scale, border = d.scale)
+	if d.chosen { draw.rect(dc, r, d.accent, radius = 3 * d.scale, border = 2 * d.scale) }
+}
+
+// A colour to choose: a square of it, ringed when chosen; a click sets `ink` (the words' colour) or `ground`.
+@(private = "file")
+swatch :: proc(id: string, c: [4]u8, chosen, ground: bool, em: f32, tip: string, ink: ^[3]u8, ink_value: [3]u8, ground_ptr: ^[4]u8) {
+	d := ui.frame_new(Swatch_Draw)
+	d.color = {f32(c[0]) / 255, f32(c[1]) / 255, f32(c[2]) / 255, 1}
+	d.chosen, d.none, d.scale = chosen, ground && c[3] == 0, ui.scale()
+	d.accent, d.edge = ui.color("accent"), ui.color("border")
+	ui.next({width = ui.px(em * 1.6), height = ui.px(em * 1.6)})
+	b := ui.custom(id, swatch_draw, d, {.Clickable})
+	if ui.a11y_wanted() { ui.a11y_set(b, {role = .Button, name = tip, selected = chosen}) }
+	if ui.signal(b).clicked {
+		if ink != nil { ink^ = ink_value }
+		if ground_ptr != nil { ground_ptr^ = c }
+	}
+}
+
+// What a page's box draws: its sheet and a soft shadow, its picture when it has one, a ring when it is selected, and
+// with the text tool on, the outline of each stamp.
 @(private = "file")
 Page_Draw :: struct {
 	tex:      render.Texture,
@@ -297,6 +371,7 @@ Page_Draw :: struct {
 	accent:   draw.Color,
 	selected: bool,
 	scale:    f32,
+	stamps:   [][4]f32,   // shares of the page (frame memory)
 }
 
 @(private = "file")
@@ -309,6 +384,11 @@ page_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
 	if d.selected {
 		ring := 2 * d.scale
 		draw.rect(dc, {b.rect.min - ring, b.rect.max + ring}, d.accent, radius = ring, border = ring)
+	}
+	size := b.rect.max - b.rect.min
+	for s in d.stamps {
+		r := draw.Rect{b.rect.min + {s[0], s[1]} * size, b.rect.min + {s[2], s[3]} * size}
+		draw.rect(dc, {r.min - 2 * d.scale, r.max + 2 * d.scale}, d.accent, border = d.scale)
 	}
 }
 
@@ -377,6 +457,10 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 				d := ui.frame_new(Page_Draw)
 				d.shadow, d.accent, d.scale = shadow, accent, ui.scale()
 				d.selected = p.id == app.selected && len(s.pages) > 1
+				if app.text_mode && len(p.stamps) > 0 {
+					d.stamps = make([][4]f32, len(p.stamps), context.temp_allocator)
+					for st, k in p.stamps { d.stamps[k] = st.box }
+				}
 				if shown, ok := &app.pictures[p.id]; ok {
 					d.tex, d.has = shown.tex, true
 					shown.seen = app.frame
@@ -392,7 +476,8 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 				if sig.clicked || sig.double_clicked {
 					app.selected, app.selected_at = p.id, i
 					at := [2]f32{sig.mouse.x / max(size.x, 1), sig.mouse.y / max(size.y, 1)}
-					if app.text_mode || sig.double_clicked { text_pick(app, p.id, at) }
+					// (the tool places or opens a stamp; without it, a double click opens the stamp under it)
+					if app.text_mode || (sig.double_clicked && stamp_at(p, at) >= 0) { stamp_click(app, p, at) }
 				}
 				if app.text.open && app.text.id == p.id {
 					if ui.parent(b) { text_field(app, size) }
@@ -405,17 +490,17 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 	}
 }
 
-// The text field over the block being edited, inside its page's box: as wide as the block, a little more for the words
-// that grow it, one line high at least.
+// The field over the stamp being written, inside its page's box: at the stamp (or the point clicked), as wide as the
+// stamp and a little more for the words that grow it, one line high at least.
 @(private = "file")
 text_field :: proc(app: ^App, page: [2]f32) {
 	bx := app.text.box
 	em := ui.font_size()
 	x, y := bx[0] * page.x, bx[1] * page.y
-	w := max((bx[2] - bx[0]) * page.x + em * 4, em * 10)
+	w := max((bx[2] - bx[0]) * page.x + em * 4, em * 12)
 	h := max((bx[3] - bx[1]) * page.y, em * 1.9)
-	ui.next({fixed_x = x - em * 0.3, fixed_y = y, width = ui.px(w), height = ui.px(h)})
-	res := ui.line_edit("###text_edit", &app.text.field, {placeholder = i18n.tr("Words")})
+	ui.next({fixed_x = x, fixed_y = y, width = ui.px(w), height = ui.px(h)})
+	res := ui.line_edit("###text_edit", &app.text.field, {placeholder = i18n.tr("Text to put on the page")})
 	if app.text.focus {
 		ui.set_focus(res.box.key)
 		app.text.focus = false

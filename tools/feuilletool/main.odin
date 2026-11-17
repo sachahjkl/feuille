@@ -25,21 +25,16 @@ project :: proc() -> toolbox.Project {
 	return {
 		name = "feuille", repository = REPOSITORY, changelog = "CHANGELOG.md",
 		version_file = "src/main.odin", version_line = "APP_VERSION :: ", program = PROGRAM,
-		title = "Feuille", description = "Open a PDF at once, arrange its pages, change its words.",
+		title = "Feuille", description = "Open a PDF at once, arrange its pages, put text on them.",
 		publisher = "Froment Software", copyright = "Copyright (c) 2026 sachahjkl",
-		// (only the icons feuille names are compiled in; the DevTools endpoint in a release too, for the live test; WebP
-		// read and written, as the suite's other programs; screen readers on Windows through AccessKit)
-		features = {.Lucide_Subset, .Devtools, .Webp, .Accessibility},
+		// (the PDF engine built in; only the icons feuille names are compiled in; the DevTools endpoint in a release
+		// too, for the live test; WebP read and written, as the suite's other programs; screen readers on Windows
+		// through AccessKit)
+		features = {.Pdf, .Lucide_Subset, .Devtools, .Webp, .Accessibility},
 		// (feuille.com, the console launcher: a file, or none, opens a window and gives the prompt back; the install's
 		// commands and the help wait and give their output and exit code through)
 		launcher = {default_rule = "detach", others = "install,--install,uninstall,--uninstall,status,--status,version,--version,help,-h,--help"},
-		works = WORKS[:],
 	}
-}
-
-// THIRD-PARTY-NOTICES: what feuille ships beside the toolkit's own. (A variable: the Project keeps a slice of it.)
-WORKS := [?]toolbox.Project_Work{
-	{name = "PDFium (the PDF engine, beside the program)", licence = "BSD-3-Clause AND Apache-2.0", file = "assets/licences/PDFIUM-LICENSE.txt"},
 }
 
 // The `licence` and `paddle` commands: feuille's licence (src/licence), its development pair, its Paddle catalogue.
@@ -51,19 +46,13 @@ LICENCE_TOOL :: toolbox.Licence_Tool{
 	paddle   = {name = "Feuille User License", description = "A personal, perpetual licence of Feuille, the PDF reader that nothing blocks.", amounts = "supporter=1500", currency = "EUR"},
 }
 
-// What goes beside the program in a release's archive: the file, and its name there. PDFium goes with it: the program
-// loads it from its own folder (pdfium.odin).
-when ODIN_OS == .Windows {
-	PDFIUM_FILE :: "pdfium.dll"
-} else {
-	PDFIUM_FILE :: "libpdfium.so"
-}
+// What goes beside the program in a release's archive: the file, and its name there. The program itself holds the
+// PDF engine.
 @(rodata)
 RELEASE_FILES := [?][2]string{
 	{"README.md", "README.md"}, {"LICENSE", "LICENSE"}, {"CHANGELOG.md", "CHANGELOG.md"},
 	{"THIRD-PARTY-NOTICES", "THIRD-PARTY-NOTICES"},
 	{"ext/gui_toolkit/src/lucide/LICENSE.txt", "LUCIDE-LICENSE.txt"},
-	{PDFIUM_LIBRARY, PDFIUM_FILE}, {PDFIUM_LICENCE, "PDFIUM-LICENSE.txt"},
 }
 
 // feuille's texts, from its code, into i18n/<language>.txt (the program embeds them: src/app.odin).
@@ -79,7 +68,6 @@ commands :: proc() -> []toolbox.Command {
 		b[0], b[1], b[2],
 		toolbox.Command{name = "shots", usage = "[--out folder]: the pictures of the README and the site, the program's own frames, headless", run = run_shots},
 		toolbox.logo_command(logo()),
-		toolbox.Command{name = "bench", usage = ": PDFium and hayro on a pinned corpus of hard PDFs, compared; build/bench/report.md (Linux)", run = run_bench},
 		r[0], r[1], r[2],
 		toolbox.Command{name = "update", usage = "keygen <file> | pubkey | manifest <program> <version> - <out> | verify <manifest> -: feuille's update key and manifests", run = proc(args: []string) -> cli.Exit { return toolbox.update_command(feuille_update.PRODUCT, args) }},
 		changelog.command(p),

@@ -1,23 +1,23 @@
 # feuille: intent
 
 feuille opens a PDF at once, without the interactive layer that blocks other readers (signatures, annotations, form
-fields). It arranges the pages (turn, add, remove, reorder), edits the words of the documents that allow it, and saves a
-copy. This folder follows <https://srcmd.org>: it records why the code has its shape. The plan is
+fields). It arranges the pages (turn, add, remove, reorder), puts text on them, and saves a copy. This folder follows <https://srcmd.org>: it records why the code has its shape. The plan is
 [ROADMAP.md](../../ROADMAP.md); the developer's how-to is [docs/development.md](../../docs/development.md).
 
 ## Overview
 
 - Odin on gui_toolkit (collection `gt`), for Windows and Linux.
-- PDFium does the PDF work, through a thin binding opened with dlopen (`src/pdf`).
+- The toolkit's `gt:pdf` (hayro, built in) reads, renders and writes; the document is a list of pages over files
+  that never change (infrastructure/engine.md).
 - Two sides, one direction each:
-  - The document worker owns the engine and the open document. It loads, renders, edits and saves. Nothing else calls
+  - The document worker owns the list of pages and its sources. It loads, renders, edits and saves. Nothing else calls
     the engine.
   - The interface's thread owns a snapshot of the document (the page list) and the pictures. It sends asks; the worker
     posts answers (`ui.post`).
 - The snapshot is what a frame reads: the page list with each page's size, rotation and identity, and a revision. Every
   edit makes a new snapshot. The layout of the column is computed from it once, not in each frame.
-- The render never sets the annotation flag unless the person asks: the interactive layer is not drawn, and no form
-  environment exists. That is the masked opening, by construction.
+- The render draws the page's own content unless the person asks for the layer: no annotation is drawn, and the
+  engine has no form environment. That is the masked opening, by construction.
 
 ## State machines
 
@@ -36,9 +36,11 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
 
 ## Subtleties
 
-- PDFium is not thread-safe: one worker thread makes every engine call. The binding checks it in debug builds.
+- One worker thread holds the list: the order of the asks is the order of the edits, with no lock on the list.
 - A page keeps its identity through reorders and inserts: the cache keys on it, so a move re-renders nothing.
-- Rotation is the page's own `/Rotate`: what is shown is what is saved.
+- A page's turns and stamps are part of its value: the render and the save read the same list, so what is shown is
+  what is saved.
+- The text tool: off → on (a click places a stamp) → a stamp's field open → committed or given up.
 - The tests make their PDFs with a small writer (`src/fixture`): no binary file in the repository.
 
 ## File Index
@@ -52,7 +54,9 @@ copy. This folder follows <https://srcmd.org>: it records why the code has its s
 - [features/memory.md](features/memory.md): the recent PDFs, each one's page and zoom, the last one at the start
 - [features/masked-opening.md](features/masked-opening.md): why the layer is hidden, the password, the copy without
   security, the day-one test
-- [features/page-edits.md](features/page-edits.md): turn, add, remove, reorder, undo, the saved copy
-- [features/text-editing.md](features/text-editing.md): what "supported" means, the edit, its limits
-- [infrastructure/pdfium.md](infrastructure/pdfium.md): the engine choice, the refused alternatives, hayro
-  measured against PDFium, the binding, the worker
+- [features/page-edits.md](features/page-edits.md): the document as a list of pages; turn, add, remove, reorder,
+  undo, the saved copy
+- [features/stamps.md](features/stamps.md): text put on a page, its style, where it goes, why not the document's own
+  words
+- [infrastructure/engine.md](infrastructure/engine.md): gt:pdf, why PDFium went (hayro measured against it), the
+  worker, the fixtures

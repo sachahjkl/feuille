@@ -18,6 +18,7 @@ import "gt:ui"
 Action :: enum u8 {
 	Open,
 	Save,
+	Print,
 	Extract_Page,
 	Undo,
 	Redo,
@@ -73,6 +74,7 @@ Action :: enum u8 {
 ACTIONS := [Action]ui.Command{
 	.Open          = {id = "open", label = i18n.later("Open a PDF…"), group = i18n.later("Document"), keys = {{.O, {.Ctrl}}}, icon = lucide.FOLDER_OPEN, tags = {"file", "load"}, scope = .Window},
 	.Save          = {id = "save", label = i18n.later("Save a copy…"), group = i18n.later("Document"), keys = {{.S, {.Ctrl}}}, icon = lucide.SAVE, tags = {"write", "export", "save as"}},
+	.Print         = {id = "print", label = i18n.later("Print…"), group = i18n.later("Document"), keys = {{.P, {.Ctrl}}}, icon = lucide.PRINTER, tags = {"printer", "paper"}},
 	.Extract_Page  = {id = "extract_page", label = i18n.later("Save this page as a PDF…"), group = i18n.later("Document"), keys = {{.E, {.Ctrl}}}, icon = lucide.FILE_OUTPUT, tags = {"extract", "split", "export"}},
 	.Undo          = {id = "undo", label = i18n.later("Undo"), group = i18n.later("Edit"), keys = {{.Z, {.Ctrl}}}, icon = lucide.UNDO_2, tags = {"back", "revert"}},
 	.Redo          = {id = "redo", label = i18n.later("Redo"), group = i18n.later("Edit"), keys = {{.Z, {.Ctrl, .Shift}}, {.Y, {.Ctrl}}}, icon = lucide.REDO_2, tags = {"again"}},
@@ -83,7 +85,7 @@ ACTIONS := [Action]ui.Command{
 	.Insert_File   = {id = "insert_file", label = i18n.later("Add the pages of a PDF after…"), group = i18n.later("Page"), keys = {{.I, {.Ctrl}}}, icon = lucide.FILE_INPUT, tags = {"import", "merge", "combine", "append"}},
 	.Move_Up       = {id = "move_up", label = i18n.later("Move the page up"), group = i18n.later("Page"), keys = {{.Up, {.Alt}}}, icon = lucide.ARROW_UP_TO_LINE, tags = {"reorder", "earlier"}},
 	.Move_Down     = {id = "move_down", label = i18n.later("Move the page down"), group = i18n.later("Page"), keys = {{.Down, {.Alt}}}, icon = lucide.ARROW_DOWN_TO_LINE, tags = {"reorder", "later"}},
-	.Edit_Text     = {id = "edit_text", label = i18n.later("Edit a text block (click it)"), group = i18n.later("Edit"), keys = {{.F2, {}}}, icon = lucide.TYPE, tags = {"words", "change", "modify", "write"}, toggle = true},
+	.Edit_Text     = {id = "add_text", label = i18n.later("Put text on a page (click where)"), group = i18n.later("Edit"), keys = {{.T, {}}, {.F2, {}}}, icon = lucide.TYPE, tags = {"words", "write", "stamp", "sign", "type", "annotate", "text box"}, toggle = true},
 	.Layer         = {id = "layer", label = i18n.later("Show the form layer"), group = i18n.later("View"), keys = {{.L, {.Ctrl}}}, icon = lucide.LAYERS_2, tags = {"signatures", "annotations", "fields", "form"}, toggle = true},
 	.Thumbnails    = {id = "thumbnails", label = i18n.later("Show the thumbnails"), group = i18n.later("View"), keys = {{.B, {.Ctrl}}}, icon = lucide.PANEL_LEFT, tags = {"sidebar", "pages", "overview"}, toggle = true},
 	.Zoom_In       = {id = "zoom_in", label = i18n.later("Zoom in"), group = i18n.later("View"), icon = lucide.ZOOM_IN, tags = {"bigger", "magnify"}},
@@ -136,7 +138,7 @@ action_enabled :: proc(app: ^App, a: Action) -> bool {
 	case .Remove_Page:   return doc && index >= 0 && len(s.pages) > 1
 	case .Move_Up:       return doc && index > 0
 	case .Move_Down:     return doc && index >= 0 && index < len(s.pages) - 1
-	case .Save, .Extract_Page, .Rotate_Right, .Rotate_Left, .Insert_Blank, .Insert_File, .Edit_Text,
+	case .Save, .Print, .Extract_Page, .Rotate_Right, .Rotate_Left, .Insert_Blank, .Insert_File, .Edit_Text,
 	     .Layer, .Thumbnails, .Zoom_In, .Zoom_Out, .Fit, .Previous_Page, .Next_Page, .First_Page, .Last_Page, .Go_To_Page:
 		return doc
 	// (the file's own acts: the document shown, whatever the page shows over it)
@@ -173,6 +175,11 @@ action_run :: proc(app: ^App, a: Action) {
 		leave_document(app, .Open_Dialog)
 	case .Save:
 		ui.file_dialog(&app.main.state, .Save, {owner = app.main.win, title = i18n.tr("Save a copy"), filters = PDF_FILTERS[:], start_dir = filepath.dir(app.snapshot.path), suggested_name = suggested_name(app, i18n.tr("edited")), default_ext = "pdf", overwrite_prompt = true}, save_chosen, app)
+	case .Print:
+		// (the dialog and the pages on the worker's printing thread: the window never waits)
+		a := edit_ask_make(w, .Print, path = filepath.base(app.snapshot.path))
+		a.layer = app.layer   // (the pages as shown: with the layer when it is drawn)
+		worker_edit(w, a)
 	case .Extract_Page:
 		ui.file_dialog(&app.main.state, .Save, {owner = app.main.win, title = i18n.tr("Save this page as a PDF"), filters = PDF_FILTERS[:], start_dir = filepath.dir(app.snapshot.path), suggested_name = suggested_name(app, fmt.tprintf(i18n.tr("page %d"), selected_index(app) + 1)), default_ext = "pdf", overwrite_prompt = true}, extract_chosen, app)
 	case .Undo:          worker_edit(w, edit_ask_make(w, .Undo))
@@ -187,7 +194,7 @@ action_run :: proc(app: ^App, a: Action) {
 	case .Move_Down:     worker_edit(w, edit_ask_make(w, .Move, id = id, to = selected_index(app) + 1))
 	case .Edit_Text:
 		app.text_mode = !app.text_mode
-		if app.text_mode { say(app, i18n.tr("Click a text block to change its words; Escape leaves")) }
+		if app.text_mode { say(app, i18n.tr("Click where the text goes, or on a text to change it; Escape leaves")) } else { text_edit_commit(app) }
 	case .Layer:         app.layer = !app.layer
 	case .Thumbnails:    app.thumbs_shown = !app.thumbs_shown
 	case .Zoom_In:       ui.zoom_zone_by(&app.zone, ui.feel(&app.main.state).zoom_step)

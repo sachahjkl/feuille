@@ -62,7 +62,6 @@ settings_options :: proc(app: ^App) -> prefs_page.Page_Options {
 settings_changed :: proc(user: rawptr, name: string) {
 	app := (^App)(user)
 	settings_reread(app)
-	if name == prefs_page.MENU_PREF || name == prefs_page.AUTOSTART_PREF { desktop_follow(app) }
 }
 
 // feuille's values read again from the registry, and what follows them.
