@@ -3,6 +3,12 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-19 12:03
+
+### Added
+- **Move, restyle or remove a mark.** With a tool on, drag a text or a shape to move it; the mark you took is outlined, the style bar changes it at once, and Delete removes it (no longer the page under it).
+- **Draw on a page.** Rectangles, ellipses to circle something, lines, arrows, the pen and the highlighter (R, E, L, A, P, H): drag on the page to draw; the colour, the width and the fill in the toolbar. The highlighter is translucent, and the words under it stay readable. Like the texts, the shapes become part of the page in the saved copy.
+
 ## [0.5.0] - 2026-11-19 10:23
 
 ### Added
@@ -60,6 +66,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.6.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.6.0
 [0.5.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.5.0
 [0.4.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.4.0
 [0.3.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.3.0
