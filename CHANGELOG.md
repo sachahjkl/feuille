@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.7.0] - 2026-11-19 14:45
+
+### Added
+- **Sign a document (S).** Type your name in one of five script hands, slanted, with a pen's weight and a flourish; or draw it on a pad with a ballpoint, a fountain pen, a felt pen or a brush, whose ink thins when you go fast and tapers at its ends. Add "Read and approved" above it and the place and the date under it. The dialog shows the signature as it goes on the page; then it follows the pointer, and a click puts it on each page that asks for it. The signature is kept for next time, and a typed one embeds only its letters in the saved copy.
+
 ## [0.6.0] - 2026-11-19 12:03
 
 ### Added
@@ -66,6 +71,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.7.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.7.0
 [0.6.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.6.0
 [0.5.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.5.0
 [0.4.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.4.0
