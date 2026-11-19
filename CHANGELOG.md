@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.8.0] - 2026-11-19 16:24
+
+### Added
+- **Several signatures, exported and imported.** The signature's dialog keeps as many signatures as you need (yours, your initials, a drawn one and a typed one) in a row at its top: click one to use it, + adds one, the bin removes one. Every change is kept, with nothing to save. Export writes them all to a `.signatures` file, and import adds those of such a file, without the ones you already have.
+
 ## [0.7.0] - 2026-11-19 14:45
 
 ### Added
@@ -71,6 +76,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.8.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.8.0
 [0.7.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.7.0
 [0.6.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.6.0
 [0.5.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.5.0
