@@ -253,6 +253,9 @@ fr Ouvrir les fichiers PDF avec Feuille (dans « Ouvrir avec »)
 en Feuille opens PDF files by default
 fr Feuille ouvre les fichiers PDF par défaut
 
+en PDF thumbnails in the file managers
+fr Aperçus des PDF dans l'explorateur de fichiers
+
 en No browser opens %s
 fr Aucun navigateur n'ouvre %s
 

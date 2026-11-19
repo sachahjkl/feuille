@@ -24,6 +24,7 @@ import "gt:platform"
 import prefs_page "gt:prefs_page"
 import setup "gt:setup"
 import "gt:ui"
+import thumbnail "thumbnail"
 
 ICON_PNGS := [?]desktop.Icon{
 	{16, #load("../assets/logo_16.png")},
@@ -63,6 +64,10 @@ feuille_parts :: proc(o: ^desktop.Integration_Options) {
 	o.add_to_path = true
 	o.document_types = PDF_TYPES[:]
 	o.open_documents = true
+	// (the PDFs' first pages in the file managers: Windows loads feuille's own provider, embedded in feuille.exe;
+	// Linux runs `feuille --thumbnail`)
+	o.thumbnails = true
+	o.thumbnail_clsid = thumbnail.CLSID
 }
 
 @(private = "file")
@@ -82,6 +87,7 @@ setup_options :: proc() -> setup.Setup_Options {
 				o.add_to_path = choices[SETUP_PATH]
 				o.open_documents = choices[SETUP_OPEN_PDF] || choices[SETUP_DEFAULT_PDF]
 				o.default_documents = choices[SETUP_DEFAULT_PDF]
+				o.thumbnails = choices[SETUP_THUMBNAILS]
 			}
 			desktop.roots_from_env(o, env_lookup)   // (a test's places: nothing of the person's)
 		},
@@ -92,6 +98,7 @@ setup_options :: proc() -> setup.Setup_Options {
 SETUP_PATH        :: 0
 SETUP_OPEN_PDF    :: 1   // in the file managers' Open with
 SETUP_DEFAULT_PDF :: 2   // the PDF files' application (Windows: its Default apps page opens, the person chooses there)
+SETUP_THUMBNAILS  :: 3   // the PDFs' first pages in the file managers (src/md/features/thumbnails.md)
 
 // (not rodata: i18n.later marks the labels for the catalogue; tr where they are shown)
 // Each box is tied to its part: with an install there, it shows what the system has, and what is ticked is what
@@ -101,6 +108,7 @@ SETUP_CHOICES := [?]setup.Choice{
 	SETUP_PATH        = {label = i18n.later("Feuille in the terminal (on the PATH)"), on = true, parts = {.Path}},
 	SETUP_OPEN_PDF    = {label = i18n.later("Open PDF files with Feuille (in Open with)"), on = true, parts = {.Documents}},
 	SETUP_DEFAULT_PDF = {label = i18n.later("Feuille opens PDF files by default"), on = false, parts = {.Default_Documents}},
+	SETUP_THUMBNAILS  = {label = i18n.later("PDF thumbnails in the file managers"), on = true, parts = {.Thumbnails}},
 }
 
 // Each frame: the install's dialog and page. The installed copy started takes over once this one ends. (The menu's

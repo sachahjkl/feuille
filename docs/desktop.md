@@ -36,9 +36,25 @@ installed (a build, Nix's) installs nothing because of a setting. The installed 
 
 ## Open PDF files with Feuille
 
-Nix's package declares the PDF type: the file managers list Feuille under Open with, and the system's default
-application can be set to it. The install of the archive does not yet: it waits for gui_toolkit's desktop integration
-to know a file association, then the install's dialog offers a box for it.
+The install's dialog has two boxes for it:
+
+- "Open PDF files with Feuille": the file managers list Feuille under Open with (on by default).
+- "Feuille opens PDF files by default": on Linux Feuille becomes the PDF files' application; on Windows the system's
+  Default apps page opens at Feuille, where you choose it (Windows lets only you set a default).
+
+Nix's package declares the PDF type itself.
+
+## Thumbnails of PDFs
+
+The box "PDF thumbnails in the file managers" (on by default) shows each PDF as its first page, its form layer hidden:
+
+- Windows: Explorer loads Feuille's own thumbnail provider, `feuille_thumbnails.dll`, which the install writes beside
+  `feuille.exe` (the program carries it inside: nothing else is downloaded) and registers for you alone. Explorer may
+  keep the old icons in its cache until it is restarted.
+- Linux: the install writes `~/.local/share/thumbnailers/feuille.thumbnailer`; the file managers run
+  `feuille --thumbnail <file> <picture> <size>`.
+
+A protected PDF shows no thumbnail: there is no password to give there.
 
 ## One window
 

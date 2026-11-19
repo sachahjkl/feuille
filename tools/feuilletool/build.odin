@@ -6,7 +6,7 @@ import changelog "gt:changelog"
 import toolbox "gt:toolbox"
 
 // The packages that have tests. One thread: the program's tests share one interface.
-@(rodata) TESTS := [?]toolbox.Test_Package{{path = "src", one_thread = true}}
+@(rodata) TESTS := [?]toolbox.Test_Package{{path = "src", one_thread = true}, {path = "src/thumbnail"}}
 
 build_options :: proc() -> toolbox.Build_Options {
 	p := project()

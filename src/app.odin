@@ -653,7 +653,7 @@ THEME_FEUILLE :: ui.Theme_Def{"Feuille",
 		{0xf59a3cff, 0x8fa9c9ff, 0xa99bc4ff, 0x56a55eff, 0xf5b324ff, 0xe5534bff, 0x95c3c8ff, 0xd9907aff}},
 	{{0xeee7dcff, 0xf8f3ebff, 0xffffffff, 0xffffffff, 0xf1eadfff, 0xe3dacdff}, {0xa59b8fff, 0x6f665cff, 0x1d1915ff, 0x000000ff},
 		{0xc2560dff, 0x3d6a9eff, 0x6b56a3ff, 0x2f8f46ff, 0xc98a10ff, 0xd03b31ff, 0x2f7c86ff, 0xa64a42ff}},
-	.Both, nil, false, 0}
+	.Both, nil, false, 0, {}}
 
 // The themes the window can show: feuille's, then the toolkit's (gui_toolkit docs/themes.md).
 themes :: proc() -> []ui.Theme_Def {

@@ -33,6 +33,8 @@ project :: proc() -> toolbox.Project {
 		features = {.Pdf, .Lucide_Subset, .Devtools, .Webp, .Accessibility},
 		// (feuille.com, the console launcher: a file, or none, opens a window and gives the prompt back; the install's
 		// commands and the help wait and give their output and exit code through)
+		// (Windows: the thumbnail provider Explorer loads, built as a DLL that feuille.exe embeds and the install writes)
+		thumbnailer = "src/thumbnailer",
 		launcher = {default_rule = "detach", others = "install,--install,uninstall,--uninstall,status,--status,version,--version,help,-h,--help"},
 	}
 }

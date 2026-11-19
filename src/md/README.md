@@ -56,6 +56,8 @@ fields). It arranges the pages (turn, add, remove, reorder), puts text on them, 
   security, the day-one test
 - [features/page-edits.md](features/page-edits.md): the document as a list of pages; turn, add, remove, reorder,
   undo, the saved copy
+- [features/thumbnails.md](features/thumbnails.md): the PDFs' first pages in Explorer and the Linux file managers,
+  why Feuille's own DLL on Windows, why it is embedded
 - [features/stamps.md](features/stamps.md): text put on a page, its style, where it goes, why not the document's own
   words
 - [infrastructure/engine.md](infrastructure/engine.md): gt:pdf, why PDFium went (hayro measured against it), the

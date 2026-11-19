@@ -3,8 +3,11 @@ package feuille
 
 import "core:fmt"
 import "core:os"
+import "core:strconv"
 import "core:strings"
 import "gt:cli"
+import png "gt:png"
+import thumbnail "thumbnail"
 import host "gt:host"
 import instance "gt:instance"
 import "gt:platform"
@@ -31,11 +34,15 @@ USAGE :: `feuille: a PDF reader that nothing blocks
                          feuille on the PATH
   feuille --uninstall    take the install away (your settings stay)
   feuille --status       what is installed, and whether feuille runs (exit 0 installed, 2 to repair, 1 not installed)
+  feuille --thumbnail <file.pdf> <out.png> <size>
+                         the PDF's first page as a picture of at most size x size (the file managers' thumbnails)
   feuille version        the version
   --pref name=value      a preference for this run only
 `
 
 run :: proc(given: []string) -> cli.Exit {
+	// (a file manager's thumbnailer: no window, no instance, no settings; it may run many at once)
+	if len(given) > 0 && given[0] == "--thumbnail" { return thumbnail_command(given[1:]) }
 	// (--install, --uninstall and --status: no window; --setup: the window, the install's dialog open)
 	cmd, args := setup.command_of(given)
 	if setup.command_alone(cmd) { return setup.command_run(cmd, setup_options(), process.console_write) }
@@ -101,3 +108,19 @@ run :: proc(given: []string) -> cli.Exit {
 	app_close(app)
 	return .Done
 }
+
+// `--thumbnail <file.pdf> <out.png> <size>`: the freedesktop thumbnailer's command (%i %o %s), the PNG of the first page.
+thumbnail_command :: proc(args: []string) -> cli.Exit {
+	if len(args) != 3 { fmt.eprint(USAGE); return .Usage }
+	size, size_ok := strconv.parse_int(args[2])
+	if !size_ok || size <= 0 || size > THUMBNAIL_MAX { fmt.eprint(USAGE); return .Usage }
+	data, err := os.read_entire_file_from_path(args[0], context.allocator)
+	if err != nil { fmt.eprintfln("feuille: %s cannot be read", args[0]); return .Failed }
+	rgba, w, h, ok := thumbnail.render(data, size)
+	if !ok { fmt.eprintfln("feuille: %s has no page to show", args[0]); return .Failed }
+	if os.write_entire_file(args[1], png.encode(rgba, w, h)) != nil { fmt.eprintfln("feuille: %s cannot be written", args[1]); return .Failed }
+	return .Done
+}
+
+// The largest thumbnail asked (the spec's "xx-large" is 1024).
+THUMBNAIL_MAX :: 2048
