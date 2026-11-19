@@ -21,6 +21,16 @@ when ODIN_OS == .Windows {
 	PROGRAM :: "build/feuille"
 }
 
+// The signature's script fonts, compiled in (src/signature.odin). (A global: a slice literal in project() would live
+// on its stack, gone once it returns.)
+WORKS := [?]toolbox.Project_Work{
+	{name = "Mrs Saint Delafield (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/MrsSaintDelafield-OFL.txt"},
+	{name = "Herr Von Muellerhoff (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/HerrVonMuellerhoff-OFL.txt"},
+	{name = "Alex Brush (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/AlexBrush-OFL.txt"},
+	{name = "Sacramento (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/Sacramento-OFL.txt"},
+	{name = "Homemade Apple (a signature's font)", licence = "Apache-2.0", file = "assets/fonts/HomemadeApple-LICENSE.txt"},
+}
+
 project :: proc() -> toolbox.Project {
 	return {
 		name = "feuille", repository = REPOSITORY, changelog = "CHANGELOG.md",
@@ -35,14 +45,7 @@ project :: proc() -> toolbox.Project {
 		// commands and the help wait and give their output and exit code through)
 		// (Windows: the thumbnail provider Explorer loads, built as a DLL that feuille.exe embeds and the install writes)
 		thumbnailer = "src/thumbnailer",
-		// (the signature's script fonts, compiled in: src/signature.odin)
-		works = {
-			{name = "Mrs Saint Delafield (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/MrsSaintDelafield-OFL.txt"},
-			{name = "Herr Von Muellerhoff (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/HerrVonMuellerhoff-OFL.txt"},
-			{name = "Alex Brush (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/AlexBrush-OFL.txt"},
-			{name = "Sacramento (a signature's font)", licence = "OFL-1.1", file = "assets/fonts/Sacramento-OFL.txt"},
-			{name = "Homemade Apple (a signature's font)", licence = "Apache-2.0", file = "assets/fonts/HomemadeApple-LICENSE.txt"},
-		},
+		works = WORKS[:],
 		launcher = {default_rule = "detach", others = "install,--install,uninstall,--uninstall,status,--status,version,--version,help,-h,--help"},
 	}
 }
