@@ -43,7 +43,8 @@ Linux. Its site:
   under it; rectangles, ellipses to circle a word, lines, arrows, the pen, the highlighter. Drag a mark to move it.
 - **Sign** (S): your name in one of five script hands, slanted, with a flourish; or drawn on a pad with a ballpoint, a
   fountain pen, a felt pen or a brush, whose ink thins when you go fast. "Read and approved", the place and the date
-  if you want them. Click on each page that asks for it; the signature is kept for next time.
+  if you want them. Click on each page that asks for it. Keep as many signatures as you need (yours, your initials),
+  and export them to a file to import them on another computer.
 - **Fast**: only the pages near the view are drawn, on a thread of their own. A long document scrolls as a short one,
   and the window never waits.
 - **It remembers**: each PDF opens again at its page and its zoom; the last one comes back at the start; the recent

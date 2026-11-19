@@ -30,9 +30,20 @@ It is not a digital signature: nothing proves who signed. It is the picture of a
 - What the dialog shows under the tabs is the signature as it goes on the page: the engine renders it (the preview
   thread, below), so the preview is the saved result, tilt, flourish and caption included. The font list and the
   pad are drawn by the interface at once, so typing and drawing never wait.
-- The signature is kept in `signature.txt` of the state folder (gt:store: read at the start, written by its worker):
-  the way, the name, the font, the effects, the colour, the size, the place, the pen, and the drawn strokes (their
-  samples, so a change of pen redraws them with the new nib).
+- The person keeps several signatures: their own, their initials, a colleague's mandate, a drawn one and a typed
+  one. The dialog's top row lists them (a typed one shows its name in its hand, a drawn one its number); a click
+  chooses the one the dialog edits and places, "+" adds a new one, the bin removes the chosen one (never the last).
+  There is no "save": the chosen signature is the one being edited, and every change is kept.
+- The signatures are kept in `signatures.txt` of the state folder (gt:store: read at the start, written by its
+  worker): for each, the way, the name, the font, the effects, the colour, the size, the place, the pen, and the
+  drawn strokes (their samples, so a change of pen redraws them with the new nib); and which one is chosen. The
+  library is written when the dialog ends, when one is added, removed or imported, and when the program ends: not
+  at each move of a slider.
+- Export writes all of them to a `.signatures` file the person chooses; import adds the signatures of such a file
+  to the list (one identical to a kept one is not added twice), and chooses the first added. It carries them to
+  another computer, or shares a scanned colleague's drawn signature. The file is text: a first line
+  `feuille signatures 1`, then the store's lines (`<n>.<field>`, a tab, the value). Reading and writing it is a task
+  of the program's pool: the interface's thread touches no file.
 - A placed signature is ordinary marks: a drag moves the part taken, Delete removes it, Undo takes the whole
   signature back. Its parts are placed in one edit (`Sign`), so one Undo removes all of it. A typed signature is one
   part; a drawn one is up to three (the mention, the ink, the caption), each movable alone.
@@ -58,6 +69,11 @@ the document never waits for a preview. It has two jobs:
   character is the width that changes.
 - Shaping the script fonts (ligatures, contextual forms): the fonts chosen join their letters without it.
 - Each part as a separate placement: the person would place three things for one signature.
+- A "Save" button and unsaved edits: one more state the person must think about, and a signature lost by a
+  forgotten click. The chosen signature is always the kept one.
+- Export as JSON or as a picture: the store's text needs no new reader, and a picture could not be placed as ink nor
+  redrawn with another pen.
+- Keeping the 0.7.0 file (`signature.txt`, one signature) readable: it lived one hour before this change.
 
 ## Subtle points
 

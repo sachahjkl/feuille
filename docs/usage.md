@@ -67,7 +67,12 @@ readable.
 
 ## Sign
 
-Press S (or the toolbar's signature): the signature's dialog opens with the one you made last time.
+Press S (or the toolbar's signature): the signature's dialog opens with the one you chose last time.
+
+The row at its top holds your signatures: a typed one shows its name in its hand, a drawn one its number. Click one to
+use it and change it; + adds a new one; the bin removes the one chosen (the last one stays). Every change is kept,
+there is nothing to save. The two buttons beside them export all of them to a `.signatures` file, and import the
+signatures of such a file (one you already have is not added again): take them to another computer, or keep a copy.
 
 - **Type it**: your name, then the hand it is written in (five script fonts, each shown with your name), its slant,
   how hard the pen presses, and a flourish under it.

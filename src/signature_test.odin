@@ -147,6 +147,77 @@ a_drawn_signature_is_ink_between_its_mention_and_its_caption :: proc(t: ^testing
 	testing.expectf(t, dark > 10, "the ink is drawn on the page (%d dark pixels)", dark)
 }
 
+// The exported file's text read back gives the same signatures; another file is refused.
+@(test)
+the_signatures_file_reads_back_what_it_wrote :: proc(t: ^testing.T) {
+	context.allocator = runtime.heap_allocator()
+	typed := SIGNATURE_DEFAULT
+	typed.name, typed.script, typed.tilt, typed.dated, typed.place = "Camille Dupré", .Sacramento, -3, true, "Lyon"
+	drawn := SIGNATURE_DEFAULT
+	drawn.mode, drawn.pen, drawn.ink = .Drawn, .Brush, {20, 20, 24}
+	st := make(Stroke, context.temp_allocator)
+	append(&st, ink.Sample{at = {10, 20}}, ink.Sample{at = {40, 25}, time = 12})
+	drawn.strokes = make([dynamic]Stroke, context.temp_allocator)
+	append(&drawn.strokes, st)
+	text := signatures_text({typed, drawn}, context.temp_allocator)
+	testing.expect(t, strings.has_prefix(text, SIGNATURES_HEADER + "\n"), "its first line says what it is")
+	back, ok := signatures_parse(text)
+	defer {
+		for &b in back { signature_free(&b) }
+		delete(back)
+	}
+	testing.expect(t, ok, "it reads")
+	testing.expect_value(t, len(back), 2)
+	if len(back) == 2 {
+		testing.expect_value(t, signature_key(back[0]), signature_key(typed))
+		testing.expect_value(t, signature_key(back[1]), signature_key(drawn))
+		testing.expect_value(t, back[0].name, "Camille Dupré")
+		testing.expect_value(t, len(back[1].strokes), 1)
+	}
+	_, other := signatures_parse("name\tCamille\n")
+	testing.expect(t, !other, "a file without the header is not one")
+}
+
+// The library in the window: a new signature, chosen; the first chosen again, as it was; exported, removed, imported
+// back (once: a second import adds nothing).
+@(test)
+signatures_are_added_chosen_exported_and_imported :: proc(t: ^testing.T) {
+	s, app := start(t, write_pdf(t, "lib.pdf", {pages = {{size = {300, 400}}}}))
+	session.wait_until(s, app, pictures_ready, "the document is drawn")
+	session.key(s, .S)
+	session.wait_until(s, app, dialog_ready, "the dialog opens")
+	app.sign.sig.mode, app.sign.tab = .Typed, 0
+	session.type_text(s, "Camille")
+	testing.expect_value(t, len(app.sign.lib), 1)
+
+	session.click(s, "sign_new")
+	testing.expect_value(t, len(app.sign.lib), 2)
+	testing.expect_value(t, app.sign.chosen, 1)
+	testing.expect_value(t, app.sign.sig.name, "")
+	session.type_text(s, "C.D.")
+	session.click(s, "sign_card0")
+	testing.expect_value(t, app.sign.chosen, 0)
+	testing.expect_value(t, app.sign.sig.name, "Camille")
+	testing.expect_value(t, ui.line_edit_string(&app.sign.name), "Camille")
+	testing.expect_value(t, app.sign.lib[1].name, "C.D.")
+
+	path := fmt.tprintf("%s/mine.%s", testkit.temp_folder(t, "feuille-signatures"), SIGNATURES_EXT)
+	sign_file_start(app, path, false)
+	session.wait_until(s, path, proc(s: ^session.Session, path: string) -> bool { return os.exists(path) }, "the signatures are exported")
+	session.frames(s, 2)
+
+	session.click(s, "sign_card1")
+	session.click(s, "sign_remove")
+	testing.expect_value(t, len(app.sign.lib), 1)
+	sign_file_start(app, path, true)
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return len(app.sign.lib) == 2 }, "the removed one comes back")
+	testing.expect_value(t, app.sign.lib[1].name, "C.D.")
+	testing.expect_value(t, app.sign.chosen, 1)
+	sign_file_start(app, path, true)
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return strings.contains(app.status, "already") }, "a second import adds nothing")
+	testing.expect_value(t, len(app.sign.lib), 2)
+}
+
 @(test)
 the_strokes_are_kept_as_text_and_read_back :: proc(t: ^testing.T) {
 	strokes := make([dynamic]Stroke, context.temp_allocator)

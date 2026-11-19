@@ -143,60 +143,24 @@ signature_caption :: proc(s: Signature, allocator := context.temp_allocator) -> 
 ////////////////////////////////
 // What is kept
 
-signature_path :: proc(allocator := context.temp_allocator) -> string {
-	return strings.concatenate({platform.user_dir(.State, APP_FOLDER, context.temp_allocator), "/signature.txt"}, allocator)
+signatures_path :: proc(allocator := context.temp_allocator) -> string {
+	return strings.concatenate({platform.user_dir(.State, APP_FOLDER, context.temp_allocator), "/signatures.txt"}, allocator)
 }
 
-// The signature kept (the defaults when none); the date is today.
-signature_load :: proc(st: ^store.Store, allocator := context.allocator) -> Signature {
-	s := SIGNATURE_DEFAULT
+// The first line of an exported file, and its extension.
+SIGNATURES_HEADER :: "feuille signatures 1"
+SIGNATURES_EXT :: "signatures"
+
+// A signature's fields, as the store and the exported file write them (no prefix; one line each).
+signature_fields :: proc(s: Signature, allocator := context.temp_allocator) -> [14]store.Entry {
 	context.allocator = allocator
-	get :: proc(st: ^store.Store, key: string) -> (string, bool) { return store.get(st, key) }
-	num :: proc(st: ^store.Store, key: string, lo, hi, fallback: f32) -> f32 {
-		v, ok := store.get(st, key)
-		if !ok { return fallback }
-		f, parsed := strconv.parse_f32(v)
-		return parsed && !math.is_nan(f) ? clamp(f, lo, hi) : fallback
-	}
-	flag :: proc(st: ^store.Store, key: string, fallback: bool) -> bool {
-		v, ok := store.get(st, key)
-		return ok ? v == "1" : fallback
-	}
-	if v, ok := get(st, "mode"); ok && v == "drawn" { s.mode = .Drawn }
-	if v, ok := get(st, "name"); ok { s.name = strings.clone(v) }
-	if v, ok := get(st, "place"); ok { s.place = strings.clone(v) }
-	if v, ok := get(st, "script"); ok {
-		for f, k in SCRIPTS { if f.name == v { s.script = k } }
-	}
-	if v, ok := get(st, "pen"); ok {
-		for k in Pen_Kind { if fmt.tprint(k) == v { s.pen = k } }
-	}
-	if v, ok := get(st, "ink"); ok {
-		n, parsed := strconv.parse_int(v, 16)
-		if parsed { s.ink = {u8(n >> 16), u8(n >> 8), u8(n)} }
-	}
-	s.tilt = num(st, "tilt", -15, 15, s.tilt)
-	s.weight = num(st, "weight", 0, 80, s.weight)
-	s.scale = num(st, "scale", 0.5, 2, s.scale)
-	s.thickness = num(st, "thickness", 0.5, 2.5, s.thickness)
-	s.flourish = flag(st, "flourish", s.flourish)
-	s.mention = flag(st, "mention", s.mention)
-	s.dated = flag(st, "dated", s.dated)
-	s.strokes = make([dynamic]Stroke)
-	if v, ok := get(st, "strokes"); ok { strokes_parse(v, &s.strokes) }
-	s.date = signature_today()
-	return s
-}
-
-// The signature written to its store (its worker writes the file).
-signature_keep :: proc(st: ^store.Store, s: Signature) {
-	f :: proc(v: f32) -> string { return fmt.tprintf("%.2f", v) }
+	f :: proc(v: f32) -> string { return fmt.aprintf("%.2f", v) }
 	b :: proc(v: bool) -> string { return v ? "1" : "0" }
-	entries := [?]store.Entry{
+	return {
 		{"mode", s.mode == .Drawn ? "drawn" : "typed"},
 		{"name", one_line(s.name)},
 		{"script", SCRIPTS[s.script].name},
-		{"ink", fmt.tprintf("%02x%02x%02x", s.ink[0], s.ink[1], s.ink[2])},
+		{"ink", fmt.aprintf("%02x%02x%02x", s.ink[0], s.ink[1], s.ink[2])},
 		{"tilt", f(s.tilt)},
 		{"weight", f(s.weight)},
 		{"flourish", b(s.flourish)},
@@ -204,10 +168,127 @@ signature_keep :: proc(st: ^store.Store, s: Signature) {
 		{"dated", b(s.dated)},
 		{"place", one_line(s.place)},
 		{"scale", f(s.scale)},
-		{"pen", fmt.tprint(s.pen)},
+		{"pen", fmt.aprint(s.pen)},
 		{"thickness", f(s.thickness)},
-		{"strokes", strokes_format(s.strokes[:])},
+		{"strokes", strokes_format(s.strokes[:], allocator)},
 	}
+}
+
+// What tells two signatures apart: their fields as one text (an import adds no signature already kept).
+signature_key :: proc(s: Signature, allocator := context.temp_allocator) -> string {
+	fields := signature_fields(s)
+	b := strings.builder_make(allocator)
+	for e in fields { fmt.sbprintf(&b, "%s\t%s\n", e.key, e.value) }
+	return strings.to_string(b)
+}
+
+// Signature `n` of `fields` (keys "<n>.<field>"); ok false when there is none. Its date is today.
+signature_read :: proc(fields: map[string]string, n: int, allocator := context.allocator) -> (s: Signature, ok: bool) {
+	get :: proc(fields: map[string]string, n: int, key: string) -> (string, bool) { return fields[fmt.tprintf("%d.%s", n, key)] }
+	mode := get(fields, n, "mode") or_return
+	context.allocator = allocator
+	s = SIGNATURE_DEFAULT
+	num :: proc(fields: map[string]string, n: int, key: string, lo, hi, fallback: f32) -> f32 {
+		v, ok := get(fields, n, key)
+		if !ok { return fallback }
+		f, parsed := strconv.parse_f32(v)
+		return parsed && !math.is_nan(f) ? clamp(f, lo, hi) : fallback
+	}
+	flag :: proc(fields: map[string]string, n: int, key: string, fallback: bool) -> bool {
+		v, ok := get(fields, n, key)
+		return ok ? v == "1" : fallback
+	}
+	if mode == "drawn" { s.mode = .Drawn }
+	if v, has := get(fields, n, "name"); has { s.name = strings.clone(v) }
+	if v, has := get(fields, n, "place"); has { s.place = strings.clone(v) }
+	if v, has := get(fields, n, "script"); has {
+		for f, k in SCRIPTS { if f.name == v { s.script = k } }
+	}
+	if v, has := get(fields, n, "pen"); has {
+		for k in Pen_Kind { if fmt.tprint(k) == v { s.pen = k } }
+	}
+	if v, has := get(fields, n, "ink"); has {
+		c, parsed := strconv.parse_int(v, 16)
+		if parsed { s.ink = {u8(c >> 16), u8(c >> 8), u8(c)} }
+	}
+	s.tilt = num(fields, n, "tilt", -15, 15, s.tilt)
+	s.weight = num(fields, n, "weight", 0, 80, s.weight)
+	s.scale = num(fields, n, "scale", 0.5, 2, s.scale)
+	s.thickness = num(fields, n, "thickness", 0.5, 2.5, s.thickness)
+	s.flourish = flag(fields, n, "flourish", s.flourish)
+	s.mention = flag(fields, n, "mention", s.mention)
+	s.dated = flag(fields, n, "dated", s.dated)
+	s.strokes = make([dynamic]Stroke)
+	if v, has := get(fields, n, "strokes"); has { strokes_parse(v, &s.strokes) }
+	s.date = signature_today()
+	return s, true
+}
+
+// The signatures of `fields`, from 0 until the first number missing.
+signatures_read :: proc(fields: map[string]string, allocator := context.allocator) -> [dynamic]Signature {
+	out := make([dynamic]Signature, allocator)
+	for n := 0; ; n += 1 {
+		s, ok := signature_read(fields, n, allocator)
+		if !ok { break }
+		append(&out, s)
+	}
+	return out
+}
+
+// Every field of `list`, numbered: the store's entries.
+signatures_entries :: proc(list: []Signature, allocator := context.temp_allocator) -> [dynamic]store.Entry {
+	out := make([dynamic]store.Entry, 0, len(list) * 14 + 1, allocator)
+	for s, n in list {
+		for e in signature_fields(s, allocator) { append(&out, store.Entry{fmt.aprintf("%d.%s", n, e.key, allocator = allocator), e.value}) }
+	}
+	return out
+}
+
+// The exported file's text: its header, then one field a line.
+signatures_text :: proc(list: []Signature, allocator := context.allocator) -> string {
+	b := strings.builder_make(allocator)
+	strings.write_string(&b, SIGNATURES_HEADER)
+	strings.write_byte(&b, '\n')
+	for e in signatures_entries(list) { fmt.sbprintf(&b, "%s\t%s\n", e.key, e.value) }
+	return strings.to_string(b)
+}
+
+// The signatures of an exported file's text; ok false when it is not one (its header).
+signatures_parse :: proc(text: string, allocator := context.allocator) -> (list: [dynamic]Signature, ok: bool) {
+	rest := text
+	first, _ := strings.split_lines_iterator(&rest)
+	if strings.trim_space(first) != SIGNATURES_HEADER { return }
+	fields := make(map[string]string, 64, context.temp_allocator)
+	for line in strings.split_lines_iterator(&rest) {
+		tab := strings.index_byte(line, '\t')
+		if tab < 0 { continue }
+		fields[line[:tab]] = strings.trim_right(line[tab + 1:], "\r")
+	}
+	return signatures_read(fields, allocator), true
+}
+
+// The library kept in its store, and which one is chosen; one signature, the defaults, when it holds none.
+signatures_load :: proc(st: ^store.Store, allocator := context.allocator) -> (list: [dynamic]Signature, chosen: int) {
+	fields := make(map[string]string, 64, context.temp_allocator)
+	for e in store.list(st) { fields[e.key] = e.value }
+	list = signatures_read(fields, allocator)
+	if len(list) == 0 {
+		s := SIGNATURE_DEFAULT
+		s.strokes = make([dynamic]Stroke, allocator)
+		s.date = signature_today(allocator)
+		append(&list, s)
+	}
+	if v, ok := fields["chosen"]; ok {
+		n, _ := strconv.parse_int(v)
+		chosen = clamp(n, 0, len(list) - 1)
+	}
+	return
+}
+
+// The library written to its store (its worker writes the file).
+signatures_keep :: proc(st: ^store.Store, list: []Signature, chosen: int) {
+	entries := signatures_entries(list)
+	append(&entries, store.Entry{"chosen", fmt.tprintf("%d", chosen)})
 	store.replace(st, entries[:])
 }
 

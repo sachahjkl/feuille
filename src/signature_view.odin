@@ -7,8 +7,12 @@ package feuille
 import "base:runtime"
 import "core:fmt"
 import "core:math"
+import "core:os"
+import "core:path/filepath"
 import "core:strings"
 import "gt:draw"
+import "gt:platform"
+import "gt:tasks"
 import "gt:font"
 import host "gt:host"
 import i18n "gt:i18n"
@@ -29,7 +33,9 @@ SIGN_STEP :: 1.5
 Sign_State :: struct {
 	thread:    Sign_Thread,
 	store:     store.Store,
-	sig:       Signature,                  // what the dialog edits (owned)
+	lib:       [dynamic]Signature,         // the signatures kept (owned); `sig` is written back to lib[chosen] (sign_sync)
+	chosen:    int,
+	sig:       Signature,                  // what the dialog edits and a click places: the chosen one (owned)
 	faces:     [Script]pdf.Face,           // the engine's ids of the fonts (faces_ok: given)
 	faces_ok:  bool,
 	ui_fonts:  [Script]font.Font_Id,       // the interface's copies, for the list (0: not read yet)
@@ -58,15 +64,10 @@ Sign_Hover :: struct {
 
 sign_init :: proc(app: ^App) {
 	s := &app.sign
-	store.open(&s.store, app.headless ? "" : signature_path())
-	s.sig = signature_load(&s.store)
-	s.tab = int(s.sig.mode)
-	ui.line_edit_set(&s.name, s.sig.name)
-	ui.line_edit_set(&s.place, s.sig.place)
-	ui.line_edit_set(&s.date, s.sig.date)
+	store.open(&s.store, app.headless ? "" : signatures_path())
+	s.lib, s.chosen = signatures_load(&s.store)
 	s.pad = make([dynamic]draw.Path)
-	sign_pad_redo(s)
-	s.version = 1
+	sign_take(app, s.chosen)
 	sign_thread_start(&s.thread, {state = &app.main.state, user = app, faces = on_sign_faces, preview = on_sign_preview})
 	ui.view_register(&app.views, SIGN_VIEW, signature_view, {title = i18n.later("Signature"), icon = lucide.SIGNATURE, icon_font = ui.lucide_icons(), width_em = 40})
 }
@@ -79,8 +80,11 @@ sign_close :: proc(app: ^App) {
 	s.tex_size = {}
 	if s.preview != nil { sign_preview_free(s.preview) }
 	s.preview = nil
+	sign_keep(app)
 	store.close(&s.store)
 	signature_free(&s.sig)
+	for &l in s.lib { signature_free(&l) }
+	delete(s.lib)
 	ui.line_edit_destroy(&s.name)
 	ui.line_edit_destroy(&s.place)
 	ui.line_edit_destroy(&s.date)
@@ -144,8 +148,8 @@ sign_follow :: proc(app: ^App) {
 		sign_thread_ask(&s.thread, s.version, s.sig, ui.scale() * 2)
 	}
 	if code, ok := ui.view_ended(&app.views, SIGN_VIEW); ok {
+		sign_keep(app)
 		if code == SIGN_PLACE {
-			signature_keep(&s.store, s.sig)
 			say(app, i18n.tr("Click on a page to sign there; Escape leaves"))
 		} else if app.tool == .Signature {
 			tool_toggle(app, .Signature)
@@ -182,7 +186,7 @@ sign_ink_set :: proc(app: ^App, c: [3]u8) {
 	if s.sig.ink == c { return }
 	s.sig.ink = c
 	sign_changed(app)
-	signature_keep(&s.store, s.sig)
+	sign_keep(app)
 	ch := app.chosen
 	if ch.kind == .None || app.snapshot == nil { return }
 	w := &app.worker
@@ -202,7 +206,236 @@ sign_ink_set :: proc(app: ^App, c: [3]u8) {
 }
 
 ////////////////////////////////
+// The library
+
+// The signature edited written back to its place in the library.
+@(private = "file")
+sign_sync :: proc(s: ^Sign_State) {
+	context.allocator = runtime.heap_allocator()
+	if s.chosen < 0 || s.chosen >= len(s.lib) { return }
+	signature_free(&s.lib[s.chosen])
+	s.lib[s.chosen] = signature_clone(s.sig)
+}
+
+// The library to its store: the signature edited first.
+sign_keep :: proc(app: ^App) {
+	s := &app.sign
+	sign_sync(s)
+	signatures_keep(&s.store, s.lib[:], s.chosen)
+}
+
+// Signature `i` of the library becomes the one edited (what was edited is not written back: the caller syncs first).
+@(private = "file")
+sign_take :: proc(app: ^App, i: int) {
+	context.allocator = runtime.heap_allocator()
+	s := &app.sign
+	s.chosen = clamp(i, 0, len(s.lib) - 1)
+	signature_free(&s.sig)
+	s.sig = signature_clone(s.lib[s.chosen])
+	if s.sig.date == "" {
+		s.sig.date = signature_today()
+	}
+	s.tab = int(s.sig.mode)
+	ui.line_edit_set(&s.name, s.sig.name)
+	ui.line_edit_set(&s.place, s.sig.place)
+	ui.line_edit_set(&s.date, s.sig.date)
+	s.drawing = false
+	sign_pad_redo(s)
+	sign_changed(app)
+}
+
+// Another signature of the library chosen.
+sign_choose :: proc(app: ^App, i: int) {
+	if i == app.sign.chosen { return }
+	sign_sync(&app.sign)
+	sign_take(app, i)
+	sign_keep(app)
+}
+
+// A new signature, the defaults, chosen: typed when the one before was, drawn when it was drawn.
+sign_new :: proc(app: ^App) {
+	context.allocator = runtime.heap_allocator()
+	s := &app.sign
+	sign_sync(s)
+	n := SIGNATURE_DEFAULT
+	n.mode = s.sig.mode
+	n.strokes = make([dynamic]Stroke)
+	append(&s.lib, n)
+	sign_take(app, len(s.lib) - 1)
+	s.focus = n.mode == .Typed
+	sign_keep(app)
+}
+
+// The chosen signature removed; never the last one.
+sign_remove :: proc(app: ^App) {
+	s := &app.sign
+	if len(s.lib) <= 1 { return }
+	signature_free(&s.lib[s.chosen])
+	ordered_remove(&s.lib, s.chosen)
+	sign_take(app, min(s.chosen, len(s.lib) - 1))
+	sign_keep(app)
+}
+
+// What a card of the library shows: a typed one its name in its hand, a drawn one its number among the drawn.
+@(private = "file")
+sign_label :: proc(s: ^Sign_State, i: int) -> string {
+	g := s.lib[i]
+	if i == s.chosen { g = s.sig }
+	if name := strings.trim_space(g.name); g.mode == .Typed && name != "" { return name }
+	if g.mode == .Typed { return i18n.tr("Typed signature") }
+	n := 0
+	for k in 0 ..= i {
+		if (k == s.chosen ? s.sig : s.lib[k]).mode == .Drawn { n += 1 }
+	}
+	return fmt.tprintf(i18n.tr("Drawn %d"), n)
+}
+
+////////////////////////////////
+// Export and import: a task of the program's pool reads and writes the file
+
+@(private = "file")
+Sign_File_Job :: struct {
+	app:     ^App,
+	path:    string,               // owned
+	list:    [dynamic]Signature,   // export: what is written; import: what is kept, then what the file adds (owned)
+	import_: bool,
+	ok:      bool,
+	added:   int,                  // import: how many of `list` are new (its last ones)
+}
+
+@(private = "file")
+sign_file_job_free :: proc(j: ^Sign_File_Job) {
+	context.allocator = runtime.heap_allocator()
+	delete(j.path)
+	for &l in j.list { signature_free(&l) }
+	delete(j.list)
+	free(j)
+}
+
+// Export (`import_` false) or import the file at `path` on the pool; what comes of it is said in the status bar.
+sign_file_start :: proc(app: ^App, path: string, import_: bool) {
+	context.allocator = runtime.heap_allocator()
+	sign_sync(&app.sign)
+	j := new(Sign_File_Job)
+	j.app, j.path, j.import_ = app, strings.clone(path), import_
+	j.list = make([dynamic]Signature)
+	for l in app.sign.lib { append(&j.list, signature_clone(l)) }
+	if !tasks.add(&app.pool, sign_file_work, j) { sign_file_job_free(j) }
+}
+
+@(private = "file")
+sign_file_work :: proc(data: rawptr) {
+	j := (^Sign_File_Job)(data)
+	context.allocator = runtime.heap_allocator()
+	if j.import_ {
+		bytes, err := os.read_entire_file_from_path(j.path, context.temp_allocator)
+		if err == nil {
+			read, ok := signatures_parse(string(bytes))
+			j.ok = ok
+			keys := make(map[string]bool, len(j.list) + len(read), context.temp_allocator)
+			for l in j.list { keys[signature_key(l)] = true }
+			for &r in read {
+				k := signature_key(r)
+				if k in keys {
+					signature_free(&r)
+					continue
+				}
+				keys[k] = true
+				append(&j.list, r)
+				j.added += 1
+			}
+			delete(read)
+		}
+	} else {
+		text := signatures_text(j.list[:], context.temp_allocator)
+		j.ok = os.write_entire_file(j.path, transmute([]u8)text) == nil
+	}
+	if !ui.post(&j.app.main.state, sign_file_done, j) { sign_file_job_free(j) }
+}
+
+@(private = "file")
+sign_file_done :: proc(data: rawptr, _: u64) {
+	j := (^Sign_File_Job)(data)
+	defer sign_file_job_free(j)
+	app := j.app
+	base := filepath.base(j.path)
+	switch {
+	case !j.ok && j.import_: say(app, i18n.tr("%s holds no signatures"), base)
+	case !j.ok:              say(app, i18n.tr("%s cannot be written"), base)
+	case !j.import_:         say(app, i18n.tr("The signatures are saved in %s"), base)
+	case j.added == 0:       say(app, i18n.tr("The signatures of %s are already kept"), base)
+	case:
+		s := &app.sign
+		sign_sync(s)
+		first := len(s.lib)
+		for &l in j.list[len(j.list) - j.added:] {
+			append(&s.lib, l)
+			l = {}   // (the library owns it now)
+		}
+		sign_take(app, first)
+		sign_keep(app)
+		say(app, i18n.tr("%d signatures added from %s"), j.added, base)
+	}
+	host.host_settle(&app.main)
+}
+
+@(private = "file")
+SIGN_FILTERS := [?]platform.File_Filter{{name = "Signatures", patterns = {"*." + SIGNATURES_EXT}}}
+
+@(private = "file")
+sign_export_chosen :: proc(r: platform.Dialog_Result, user: rawptr) {
+	if r.status == .Chosen && len(r.paths) > 0 { sign_file_start((^App)(user), r.paths[0], false) }
+}
+
+@(private = "file")
+sign_import_chosen :: proc(r: platform.Dialog_Result, user: rawptr) {
+	if r.status == .Chosen && len(r.paths) > 0 { sign_file_start((^App)(user), r.paths[0], true) }
+}
+
+sign_export :: proc(app: ^App) {
+	ui.file_dialog(&app.main.state, .Save, {owner = app.main.win, title = i18n.tr("Export the signatures"), filters = SIGN_FILTERS[:], suggested_name = "signatures." + SIGNATURES_EXT, default_ext = SIGNATURES_EXT, overwrite_prompt = true, remember_id = "signatures"}, sign_export_chosen, app)
+}
+
+sign_import :: proc(app: ^App) {
+	ui.file_dialog(&app.main.state, .Open, {owner = app.main.win, title = i18n.tr("Import signatures"), filters = SIGN_FILTERS[:], all_files = true, remember_id = "signatures"}, sign_import_chosen, app)
+}
+
+////////////////////////////////
 // The dialog
+
+// The library's row: a card a signature, the chosen one held; add, remove, import, export.
+@(private = "file")
+library_part :: proc(app: ^App, em: f32) {
+	s := &app.sign
+	ui.next({width = ui.fill(), height = ui.children_sum()})
+	if ui.row(.Center) {
+		gap := math.round(em * 0.35)
+		ui.next({width = ui.fill(), height = ui.children_sum(), axis = .X, gap = {gap, gap}})
+		if ui.parent(ui.build_box({.Wrap}, "###sign_library")) {
+			for _, i in s.lib {
+				g := i == s.chosen ? s.sig : s.lib[i]
+				label := sign_label(s, i)
+				if g.mode == .Typed && strings.trim_space(g.name) != "" {
+					ui.next({height = ui.px(em * 2.3), font = s.ui_fonts[g.script], font_size = em * 1.25 * SCRIPTS[g.script].scale})
+					if ui.button(fmt.tprintf("sign_card%d", i), label, o = {face = i == s.chosen ? .Toggled : .Raised, tip = label}).clicked { sign_choose(app, i) }
+				} else {
+					ui.next({height = ui.px(em * 2.3)})
+					glyph := g.mode == .Drawn ? lucide.PEN_TOOL : lucide.KEYBOARD
+					if ui.button(fmt.tprintf("sign_card%d", i), label, glyph, {face = i == s.chosen ? .Toggled : .Raised, icon_font = ui.lucide_icons()}).clicked { sign_choose(app, i) }
+				}
+			}
+			ui.next({width = ui.px(em * 2.3), height = ui.px(em * 2.3)})
+			if ui.button("sign_new", icon = lucide.PLUS, o = {tip = i18n.tr("A new signature"), icon_font = ui.lucide_icons()}).clicked { sign_new(app) }
+		}
+		ui.space(ui.CONTROL_GAP)
+		ui.next({width = ui.px(em * 2.3), height = ui.px(em * 2.3)})
+		if ui.button("sign_remove", icon = lucide.TRASH_2, o = {tip = i18n.tr("Remove this signature"), icon_font = ui.lucide_icons(), disabled = len(s.lib) <= 1}).clicked { sign_remove(app) }
+		ui.next({width = ui.px(em * 2.3), height = ui.px(em * 2.3)})
+		if ui.button("sign_import", icon = lucide.FILE_INPUT, o = {tip = i18n.tr("Import signatures…"), icon_font = ui.lucide_icons()}).clicked { sign_import(app) }
+		ui.next({width = ui.px(em * 2.3), height = ui.px(em * 2.3)})
+		if ui.button("sign_export", icon = lucide.FILE_OUTPUT, o = {tip = i18n.tr("Export the signatures…"), icon_font = ui.lucide_icons()}).clicked { sign_export(app) }
+	}
+}
 
 @(private = "file")
 signature_view :: proc(v: ^ui.View, app: ^App) {
@@ -211,6 +444,8 @@ signature_view :: proc(v: ^ui.View, app: ^App) {
 	sig := &s.sig
 	em := ui.font_size()
 	if ui.dialog_body("body") {
+		library_part(app, em)
+		ui.space(ui.SPACE_3)
 		ui.next({width = ui.fill(), height = ui.children_sum()})
 		if ui.row(.Center) {
 			ui.spacer(ui.fill())

@@ -451,6 +451,42 @@ fr Signature
 en Click on a page to sign there; Escape leaves
 fr Cliquez sur une page pour y signer ; Échap pour quitter
 
+en Typed signature
+fr Signature écrite
+
+en Drawn %d
+fr Dessinée %d
+
+en %s holds no signatures
+fr %s ne contient pas de signatures
+
+en The signatures are saved in %s
+fr Les signatures sont enregistrées dans %s
+
+en The signatures of %s are already kept
+fr Les signatures de %s sont déjà gardées
+
+en %d signatures added from %s
+fr %d signatures ajoutées depuis %s
+
+en Export the signatures
+fr Exporter les signatures
+
+en Import signatures
+fr Importer des signatures
+
+en A new signature
+fr Une nouvelle signature
+
+en Remove this signature
+fr Supprimer cette signature
+
+en Import signatures…
+fr Importer des signatures…
+
+en Export the signatures…
+fr Exporter les signatures…
+
 en Type it
 fr L’écrire
 
