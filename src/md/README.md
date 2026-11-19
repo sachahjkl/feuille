@@ -62,5 +62,7 @@ fields). It arranges the pages (turn, add, remove, reorder), puts text on them, 
   why Feuille's own DLL on Windows, why it is embedded
 - [features/marks.md](features/marks.md): text and shapes put on a page, the tools, moving and restyling a mark,
   where it goes, why not the document's own words nor annotations
+- [features/signature.md](features/signature.md): a signature typed in a script font or drawn with a pen's ink,
+  its date and place, the preview thread, what is kept
 - [infrastructure/engine.md](infrastructure/engine.md): gt:pdf, why PDFium went (hayro measured against it), the
   worker, the fixtures

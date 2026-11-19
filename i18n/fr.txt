@@ -70,6 +70,9 @@ fr Dessiner à main levée (stylo)
 en Highlight
 fr Surligner
 
+en Sign (typed or drawn)
+fr Signer (écrit ou dessiné)
+
 en Remove the chosen mark
 fr Retirer la marque choisie
 
@@ -316,6 +319,12 @@ fr Couleur du texte
 en Background
 fr Fond
 
+en Change the signature…
+fr Changer la signature…
+
+en Ink
+fr Encre
+
 en Highlighter colour
 fr Couleur du surligneur
 
@@ -421,6 +430,93 @@ fr Mises à jour
 en Rendering
 fr Rendu
 
+en %02d/%02d/%d
+fr %02d/%02d/%d
+
+en Done at %s, on %s
+fr Fait à %s, le %s
+
+en Done at %s
+fr Fait à %s
+
+en On %s
+fr Le %s
+
+en Read and approved
+fr Lu et approuvé
+
+en Signature
+fr Signature
+
+en Click on a page to sign there; Escape leaves
+fr Cliquez sur une page pour y signer ; Échap pour quitter
+
+en Type it
+fr L’écrire
+
+en Draw it
+fr La dessiner
+
+en Cancel
+fr Annuler
+
+en Place on the page
+fr Poser sur la page
+
+en Your name, as you sign it
+fr Votre nom, tel que vous signez
+
+en Slant
+fr Inclinaison
+
+en Pen weight
+fr Appui de la plume
+
+en A flourish under the name
+fr Un paraphe sous le nom
+
+en Ballpoint
+fr Stylo bille
+
+en Fountain pen
+fr Stylo plume
+
+en Felt pen
+fr Feutre
+
+en Brush
+fr Pinceau
+
+en Remove the last stroke
+fr Retirer le dernier trait
+
+en Clear
+fr Effacer
+
+en Pen thickness
+fr Épaisseur du trait
+
+en Size
+fr Taille
+
+en “Read and approved” above it
+fr « Lu et approuvé » au-dessus
+
+en The place and the date under it
+fr Le lieu et la date en dessous
+
+en Place
+fr Lieu
+
+en Date
+fr Date
+
+en The signature as it goes on the page
+fr La signature telle qu’elle ira sur la page
+
+en Draw your signature here
+fr Dessinez votre signature ici
+
 en Opening %s…
 fr Ouverture de %s…
 
@@ -471,9 +567,6 @@ fr Mot de passe
 
 en Wrong password
 fr Mot de passe faux
-
-en Cancel
-fr Annuler
 
 en Text to put on the page
 fr Texte à poser sur la page

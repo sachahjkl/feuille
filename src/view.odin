@@ -57,6 +57,7 @@ view_build :: proc(h: ^host.Host, size: host.Vec2) {
 		menus_build(app, em)
 		// (the install's dialog and the settings' Installation page; headless, nothing is read or offered)
 		install_follow(app)
+		sign_follow(app)
 	}
 	send_asks(app)
 }
@@ -184,6 +185,7 @@ build_tools :: proc(app: ^App, em: f32) {
 		tool(app, .Draw_Arrow, em)
 		tool(app, .Draw_Pen, em)
 		tool(app, .Highlight, em)
+		tool(app, .Sign, em)
 		if app.tool != .None { marks_style_bar(app, em) }
 		ui.space(ui.CONTROL_GAP)
 		tool(app, .Layer, em)

@@ -65,6 +65,26 @@ Pen (P: freehand), Highlighter (H). Drag on the page to draw. The style bar show
 a rectangle or an ellipse, the fill; the highlighter's colours are translucent, and the words under them stay
 readable.
 
+## Sign
+
+Press S (or the toolbar's signature): the signature's dialog opens with the one you made last time.
+
+- **Type it**: your name, then the hand it is written in (five script fonts, each shown with your name), its slant,
+  how hard the pen presses, and a flourish under it.
+- **Draw it**: sign in the box with the pointer. The nib changes the ink: a ballpoint, a fountain pen (thick across
+  its nib, thin along it), a felt pen, a brush. The ink thins where you go fast, as on paper, and its ends taper.
+  The arrow takes the last stroke back; Clear starts again. A change of nib or thickness redraws what is there.
+- Both: the ink's colour (black, blue, dark blue), the size, "Read and approved" above it, and the place and the
+  date under it ("Done at Lyon, on 19/11/2026"). The date is today's; change it in its field.
+
+The picture at the bottom is the signature as it goes on the page. "Place on the page" closes the dialog; the
+signature follows the pointer over the pages, and a click puts it there, centred. Click on each page that asks for
+it; Escape leaves. A signature is marks of its page: drag it, Delete removes it, Ctrl+Z takes it back. The toolbar's
+pen opens the dialog again, and its colours recolour the signature you chose.
+
+A typed signature's font is embedded in the saved copy (only its letters), and its words stay copyable. It is the
+picture of a signature, as on paper: it proves nothing about who signed.
+
 ## Move, change or remove a mark
 
 With any of these tools on (text included), press on a text or a shape and drag it: it moves. A click on a text opens

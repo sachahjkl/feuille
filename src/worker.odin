@@ -10,6 +10,7 @@ package feuille
 // open stops them: the job runs again).
 
 import "base:runtime"
+import "core:math"
 import "core:os"
 import "core:slice"
 import "core:strings"
@@ -59,7 +60,10 @@ snapshot_free :: proc(s: ^Snapshot) {
 	if s == nil { return }
 	delete(s.path)
 	for p in s.pages {
-		for st in p.stamps { delete(st.stamp.text) }
+		for st in p.stamps {
+			delete(st.stamp.text)
+			delete(st.stamp.caption)
+		}
 		delete(p.stamps)
 		for sh in p.shapes { delete(sh.shape.points) }
 		delete(p.shapes)
@@ -238,7 +242,8 @@ edit_ask_make :: proc(w: ^Worker, kind: Edit_Kind, id: u64 = 0, turns := 0, to :
 stamp_ask_make :: proc(w: ^Worker, id: u64, index: int, style: pdf.Stamp, text: string, at: [2]f32 = {}, moved := false) -> Edit_Ask {
 	a := edit_ask_make(w, .Stamp, id = id, text = text)
 	a.index, a.stamp, a.at, a.moved = index, style, at, moved
-	a.stamp.text = ""
+	// (a signature's caption and effects stay its own: the worker keeps them, and the ask owns no string of the style)
+	a.stamp.text, a.stamp.caption = "", ""
 	return a
 }
 
@@ -394,6 +399,7 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 			for st, k in e.page.stamps {
 				sp.stamps[k] = {box = stamp_box(e.page, st, shown), stamp = st}
 				sp.stamps[k].stamp.text = strings.clone(st.text)
+				sp.stamps[k].stamp.caption = strings.clone(st.caption)
 			}
 		}
 		if len(e.page.shapes) > 0 {
@@ -405,6 +411,7 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 				for q, n in sh.points {
 					v := turn_forward(q, e.page, shown) / shown
 					sp.shapes[k].shape.points[n] = v
+					if math.is_nan(v.x) { continue }   // (between two contours of an outline)
 					lo, hi = {min(lo.x, v.x), min(lo.y, v.y)}, {max(hi.x, v.x), max(hi.y, v.y)}
 				}
 				sp.shapes[k].box = {lo.x, lo.y, hi.x, hi.y}

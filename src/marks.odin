@@ -11,9 +11,10 @@ import "gt:host"
 import i18n "gt:i18n"
 import lucide "gt:lucide"
 import pdf "gt:pdf"
+import "gt:render"
 import "gt:ui"
 
-Tool :: enum u8 { None, Text, Rect, Ellipse, Line, Arrow, Pen, Highlight }
+Tool :: enum u8 { None, Text, Rect, Ellipse, Line, Arrow, Pen, Highlight, Signature }
 
 Mark_Kind :: enum u8 { None, Stamp, Shape }
 
@@ -54,8 +55,16 @@ tool_toggle :: proc(app: ^App, t: Tool) {
 	text_edit_commit(app)
 	app.chosen = {}
 	app.tool = app.tool == t ? .None : t
-	if app.tool == .Text { say(app, i18n.tr("Click where the text goes, or on a text to change it; Escape leaves")) }
-	if app.tool >= .Rect { say(app, i18n.tr("Drag on the page to draw; drag a mark to move it, Delete removes it; Escape leaves")) }
+	switch app.tool {
+	case .None:
+	case .Text: say(app, i18n.tr("Click where the text goes, or on a text to change it; Escape leaves"))
+	case .Rect, .Ellipse, .Line, .Arrow, .Pen, .Highlight:
+		say(app, i18n.tr("Drag on the page to draw; drag a mark to move it, Delete removes it; Escape leaves"))
+	case .Signature:
+		// (the signature kept, to change or to place at once)
+		sign_open(app)
+	}
+	if app.tool != .Signature { ui.view_close(&app.views, SIGN_VIEW) }
 }
 
 // The mark of page `p` under `at` (shares), texts first (they are drawn over the shapes), the last drawn first; the
@@ -90,6 +99,7 @@ tool_style :: proc(app: ^App) -> pdf.Shape {
 marks_input :: proc(app: ^App, p: Snapshot_Page, sig: ui.Signal, size: [2]f32) {
 	g := &app.gesture
 	at := [2]f32{clamp(sig.mouse.x / max(size.x, 1), 0, 1), clamp(sig.mouse.y / max(size.y, 1), 0, 1)}
+	if app.tool == .Signature && sig.hovering { app.sign.hover = {p.id, at, app.frame} }
 	if sig.pressed && !g.active {
 		text_edit_commit(app)
 		clear(&g.points)
@@ -148,6 +158,8 @@ gesture_end :: proc(app: ^App, p: Snapshot_Page) {
 			if len(g.points) >= 2 { worker_edit(w, shape_ask_make(w, p.id, -1, tool_style(app), g.points[:])) }
 		case .Rect, .Ellipse, .Line, .Arrow, .Highlight:
 			if g.moved { worker_edit(w, shape_ask_make(w, p.id, -1, tool_style(app), {g.start, g.now})) }
+		case .Signature:
+			if !g.moved { sign_place(app, p, g.start) }
 		}
 	}
 }
@@ -194,6 +206,7 @@ style_changed :: proc(app: ^App) {
 		worker_edit(w, stamp_ask_make(w, c.id, c.index, style, st.stamp.text))
 	case .Shape:
 		old := p.shapes[c.index].shape
+		if old.kind == .Outline { return }   // (a signature's ink: its colour is the signature tool's)
 		style := app.ink
 		if old.kind == .Rect && old.stroke[3] == 0 && old.fill[3] > 0 && old.fill[3] < 255 { style = {fill = app.marker} }
 		if old.kind == .Line || old.kind == .Arrow || old.kind == .Ink { style.fill = {} }
@@ -229,6 +242,13 @@ marks_style_bar :: proc(app: ^App, em: f32) {
 		ui.space(ui.ICON_GAP)
 		for c, i in GROUNDS {
 			if swatch(fmt.tprintf("###ground%d", i), c, s.background == c, em, i18n.tr("Background")) { s.background = c; changed = true }
+		}
+	case .Signature:
+		ui.next({width = ui.px(em * TOOL_EM), height = ui.px(em * TOOL_EM), radius = em * 0.4})
+		if ui.button("sign_change", icon = lucide.FILE_PEN_LINE, o = {tip = i18n.tr("Change the signature…"), icon_font = ui.lucide_icons()}).clicked { sign_open(app) }
+		ui.space(ui.CONTROL_GAP)
+		for c, i in SIGN_INKS {
+			if swatch(fmt.tprintf("###sign_bar_ink%d", i), {c[0], c[1], c[2], 255}, app.sign.sig.ink == c, em, i18n.tr("Ink")) { sign_ink_set(app, c) }
 		}
 	case .Highlight:
 		for c, i in MARKERS {
@@ -297,10 +317,9 @@ swatch_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
 }
 
 // A colour to choose: a square of it (on white, as on the page), ringed when chosen; true when clicked.
-@(private = "file")
 swatch :: proc(id: string, c: [4]u8, chosen: bool, em: f32, tip: string) -> bool {
 	d := ui.frame_new(Swatch_Draw)
-	d.color = {f32(c[0]) / 255, f32(c[1]) / 255, f32(c[2]) / 255, f32(c[3]) / 255}
+	d.color = draw.srgb(f32(c[0]) / 255, f32(c[1]) / 255, f32(c[2]) / 255, f32(c[3]) / 255)
 	d.chosen, d.none, d.scale = chosen, c[3] == 0, ui.scale()
 	d.accent, d.edge = ui.color("accent"), ui.color("border")
 	ui.next({width = ui.px(em * 1.6), height = ui.px(em * 1.6)})
@@ -323,11 +342,15 @@ Marks_Overlay :: struct {
 	points:  [][2]f32,    // the Pen's
 	color:   draw.Color,
 	accent:  draw.Color,
+	ghost:   [4]f32,      // the signature's picture under the pointer (shares; has_ghost)
+	has_ghost: bool,
+	ghost_tex: render.Texture,
 }
 
 // The overlay of page `p` this frame (nil: nothing to draw).
 marks_overlay :: proc(app: ^App, p: Snapshot_Page) -> ^Marks_Overlay {
 	if app.tool == .None && app.chosen.kind == .None { return nil }
+	if app.tool == .Signature && app.sign.hover.id == p.id { host.host_settle(&app.main) }
 	o := ui.frame_new(Marks_Overlay)
 	o.accent = ui.color("accent")
 	if app.tool != .None {
@@ -340,6 +363,13 @@ marks_overlay :: proc(app: ^App, p: Snapshot_Page) -> ^Marks_Overlay {
 		if c.kind == .Stamp && c.index < len(p.stamps) { o.chosen, o.has_chosen = p.stamps[c.index].box, true }
 		if c.kind == .Shape && c.index < len(p.shapes) { o.chosen, o.has_chosen = p.shapes[c.index].box, true }
 	}
+	// (the signature follows the pointer: its picture where a click puts it, margin included)
+	if h := app.sign.hover; app.tool == .Signature && h.id == p.id && h.frame + 1 >= app.frame && !app.gesture.active {
+		if m := sign_ready_marks(app); m != nil && app.sign.tex_size != {} && p.size.x > 0 && p.size.y > 0 {
+			half := (m.size / 2 + SIGN_PREVIEW_MARGIN) / p.size
+			o.ghost, o.has_ghost, o.ghost_tex = {h.at.x - half.x, h.at.y - half.y, h.at.x + half.x, h.at.y + half.y}, true, app.sign.tex
+		}
+	}
 	g := &app.gesture
 	if g.active && g.id == p.id {
 		if g.on.kind != .None && g.moved { o.shift = g.now - g.start }
@@ -348,7 +378,7 @@ marks_overlay :: proc(app: ^App, p: Snapshot_Page) -> ^Marks_Overlay {
 			o.points = g.points[:]
 			s := tool_style(app)
 			ink := s.stroke[3] > 0 ? s.stroke : s.fill
-			o.color = {f32(ink[0]) / 255, f32(ink[1]) / 255, f32(ink[2]) / 255, max(f32(ink[3]) / 255, 0.5)}
+			o.color = draw.srgb(f32(ink[0]) / 255, f32(ink[1]) / 255, f32(ink[2]) / 255, max(f32(ink[3]) / 255, 0.5))
 		}
 	}
 	return o
@@ -363,6 +393,8 @@ marks_overlay_draw :: proc(dc: ^draw.Context, r: draw.Rect, o: ^Marks_Overlay, s
 	faint := o.accent
 	faint.a = 0.45
 	for b in o.boxes { draw.rect(dc, draw.rect_pad(box_px(r, size, b), 2 * scale), faint, border = scale) }
+	// (the ink alone, a little faint until placed: the words under it stay seen)
+	if o.has_ghost { draw.image(dc, o.ghost_tex, box_px(r, size, o.ghost), tint = {1, 1, 1, 0.75}) }
 	if o.has_chosen {
 		draw.rect(dc, draw.rect_shift(draw.rect_pad(box_px(r, size, o.chosen), 3 * scale), o.shift * size), o.accent, border = 2 * scale)
 	}

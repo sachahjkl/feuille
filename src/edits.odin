@@ -21,6 +21,8 @@ Edit_Kind :: enum u8 {
 	           // `moved`: it goes to `at` (shares of the page shown)
 	Shape,     // shape `index` of page `id` (-1: a new one) set to `shape`'s style; `points` (shares of the page shown):
 	           // its new place (nil: it stays); `remove`: it goes
+	Sign,      // the signature's `marks` (points, upright, their box's corner at 0, 0) on page `id`, that corner at `at`
+	           // (shares of the page shown): one edit for all its parts
 	Undo,
 	Redo,
 	Save,      // a copy of the document at `path`; it becomes the document's file
@@ -41,6 +43,7 @@ Edit_Ask :: struct {
 	stamp:  pdf.Stamp,   // its style (its text is `text`)
 	shape:  pdf.Shape,   // its style and kind (its points are `points`)
 	points: [][2]f32,    // owned by the ask
+	marks:  Sign_Marks,  // owned by the ask
 	text:   string,      // owned by the ask
 	path:   string,      // owned by the ask
 	ids:    []u64,       // owned by the ask
@@ -51,6 +54,7 @@ edit_ask_free :: proc(a: ^Edit_Ask) {
 	delete(a.path)
 	delete(a.ids)
 	delete(a.points)
+	sign_marks_free(&a.marks)
 	a^ = {}
 }
 
@@ -66,12 +70,16 @@ stamps_clone :: proc(stamps: []pdf.Stamp, allocator := context.allocator) -> []p
 	for s, i in stamps {
 		out[i] = s
 		out[i].text = strings.clone(s.text, allocator)
+		out[i].caption = strings.clone(s.caption, allocator)
 	}
 	return out
 }
 
 stamps_free :: proc(stamps: []pdf.Stamp, allocator := context.allocator) {
-	for s in stamps { delete(s.text, allocator) }
+	for s in stamps {
+		delete(s.text, allocator)
+		delete(s.caption, allocator)
+	}
 	delete(stamps, allocator)
 }
 
@@ -285,6 +293,8 @@ edit_now :: proc(w: ^Worker, a: ^Edit_Ask) -> (changed: bool) {
 		return stamp(w, a)
 	case .Shape:
 		return shape(w, a)
+	case .Sign:
+		return sign(w, a)
 	case .Undo:
 		return step(w, true)
 	case .Redo:
@@ -421,6 +431,8 @@ stamp :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 		} else {
 			old := list[a.index]
 			s.at, s.turns = old.at, old.turns
+			// (a signature's font and effects are its own: the text tool's style and a move never change them)
+			s.face, s.tilt, s.weight, s.flourish, s.caption = old.face, old.tilt, old.weight, old.flourish, old.caption
 			// (moved: upright where it lands, so its corner is the point given)
 			if a.moved {
 				s.at = turn_back(a.at, shown, size, p.turns)
@@ -432,6 +444,36 @@ stamp :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 		return false
 	}
 	return do_op(w, Op_Marks{a.id, stamps_clone(list[:], w.allocator), shapes_clone(p.shapes, w.allocator)})
+}
+
+// The signature's marks added to page `id`: each point from the signature's points to the page as its file shows
+// it, each text upright on the page shown.
+@(private = "file")
+sign :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
+	i := index_of(w, a.id)
+	if i < 0 || len(a.marks.stamps) + len(a.marks.shapes) == 0 { return false }
+	p := w.pages[i].page
+	shown := pdf.shown_size(p)
+	if shown.x <= 0 || shown.y <= 0 { return false }
+	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	upright := (4 - (((p.turns % 4) + 4) % 4)) % 4
+	stamps := make([dynamic]pdf.Stamp, context.temp_allocator)
+	append(&stamps, ..p.stamps)
+	for s in a.marks.stamps {
+		t := s
+		t.at, t.turns = turn_back(a.at + s.at / shown, shown, size, p.turns), upright
+		append(&stamps, t)
+	}
+	shapes := make([dynamic]pdf.Shape, context.temp_allocator)
+	append(&shapes, ..p.shapes)
+	for s in a.marks.shapes {
+		t := s
+		t.points = make([][2]f32, len(s.points), context.temp_allocator)
+		// (a NaN between two contours stays one)
+		for q, k in s.points { t.points[k] = turn_back(a.at + q / shown, shown, size, p.turns) }
+		append(&shapes, t)
+	}
+	return do_op(w, Op_Marks{a.id, stamps_clone(stamps[:], w.allocator), shapes_clone(shapes[:], w.allocator)})
 }
 
 // The shapes of page `id` after the ask: a new one, one restyled, moved or removed.

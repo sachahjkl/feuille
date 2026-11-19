@@ -36,6 +36,7 @@ Action :: enum u8 {
 	Draw_Arrow,
 	Draw_Pen,
 	Highlight,
+	Sign,
 	Remove_Mark,
 	Layer,
 	Thumbnails,
@@ -99,6 +100,7 @@ ACTIONS := [Action]ui.Command{
 	.Draw_Arrow    = {id = "draw_arrow", label = i18n.later("Draw an arrow"), group = i18n.later("Edit"), keys = {{.A, {}}}, icon = lucide.ARROW_UP_RIGHT, tags = {"point", "shape", "annotate"}, toggle = true},
 	.Draw_Pen      = {id = "draw_pen", label = i18n.later("Draw freely (pen)"), group = i18n.later("Edit"), keys = {{.P, {}}}, icon = lucide.PENCIL, tags = {"ink", "freehand", "sign", "scribble", "annotate"}, toggle = true},
 	.Highlight     = {id = "highlight", label = i18n.later("Highlight"), group = i18n.later("Edit"), keys = {{.H, {}}}, icon = lucide.HIGHLIGHTER, tags = {"marker", "mark", "annotate"}, toggle = true},
+	.Sign          = {id = "sign", label = i18n.later("Sign (typed or drawn)"), group = i18n.later("Edit"), keys = {{.S, {}}}, icon = lucide.SIGNATURE, tags = {"signature", "initials", "autograph", "contract", "read and approved"}, toggle = true},
 	.Remove_Mark   = {id = "remove_mark", label = i18n.later("Remove the chosen mark"), group = i18n.later("Edit"), keys = {{.Backspace, {}}}, icon = lucide.TRASH_2, tags = {"delete", "erase", "shape", "text"}},
 	.Layer         = {id = "layer", label = i18n.later("Show the form layer"), group = i18n.later("View"), keys = {{.L, {.Ctrl}}}, icon = lucide.LAYERS_2, tags = {"signatures", "annotations", "fields", "form"}, toggle = true},
 	.Thumbnails    = {id = "thumbnails", label = i18n.later("Show the thumbnails"), group = i18n.later("View"), keys = {{.B, {.Ctrl}}}, icon = lucide.PANEL_LEFT, tags = {"sidebar", "pages", "overview"}, toggle = true},
@@ -154,7 +156,7 @@ action_enabled :: proc(app: ^App, a: Action) -> bool {
 	case .Move_Down:     return doc && index >= 0 && index < len(s.pages) - 1
 	case .Remove_Mark:   return doc && app.chosen.kind != .None
 	case .Save, .Print, .Extract_Page, .Rotate_Right, .Rotate_Left, .Insert_Blank, .Insert_File, .Edit_Text,
-	     .Draw_Rect, .Draw_Ellipse, .Draw_Line, .Draw_Arrow, .Draw_Pen, .Highlight, .Layer, .Thumbnails, .Zoom_In, .Zoom_Out, .Fit, .Previous_Page, .Next_Page, .First_Page, .Last_Page, .Go_To_Page:
+	     .Draw_Rect, .Draw_Ellipse, .Draw_Line, .Draw_Arrow, .Draw_Pen, .Highlight, .Sign, .Layer, .Thumbnails, .Zoom_In, .Zoom_Out, .Fit, .Previous_Page, .Next_Page, .First_Page, .Last_Page, .Go_To_Page:
 		return doc
 	// (the file's own acts: the document shown, whatever the page shows over it)
 	case .Open_With, .Reveal, .Copy_Path:
@@ -183,6 +185,7 @@ action_on :: proc(app: ^App, a: Action) -> bool {
 	case .Draw_Arrow:   return app.tool == .Arrow
 	case .Draw_Pen:     return app.tool == .Pen
 	case .Highlight:    return app.tool == .Highlight
+	case .Sign:         return app.tool == .Signature
 	}
 	return false
 }
@@ -223,6 +226,7 @@ action_run :: proc(app: ^App, a: Action) {
 	case .Draw_Arrow:    tool_toggle(app, .Arrow)
 	case .Draw_Pen:      tool_toggle(app, .Pen)
 	case .Highlight:     tool_toggle(app, .Highlight)
+	case .Sign:          tool_toggle(app, .Signature)
 	case .Remove_Mark:   _ = mark_remove(app)
 	case .Layer:         app.layer = !app.layer
 	case .Thumbnails:    app.thumbs_shown = !app.thumbs_shown

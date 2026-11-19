@@ -139,6 +139,7 @@ App :: struct {
 	marker:        [4]u8,         // the highlighter's colour
 	chosen:        Mark_Ref,      // the mark the style bar and Delete act on (kind None: none)
 	gesture:       Gesture,       // a press of a tool on a page, until its release
+	sign:          Sign_State,    // the signature, its dialog, its preview thread (signature_view.odin)
 	go_jump:       bool,          // go_to is reached at once, not scrolled to (a document opened at its last page)
 	memory:        Memory,        // the recent PDFs, each one's page and zoom (recent.odin)
 	reopening:     bool,          // the open under way is the last document's, at the start: a failure is not said
@@ -253,6 +254,7 @@ app_open :: proc(o: App_Options) -> ^App {
 	app.last_ask = make([dynamic]Render_Ask)
 	app.frame_asks = make([dynamic]Render_Ask)
 	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture, saved = on_saved, printed = on_printed, window = o.headless ? nil : h.win})
+	sign_init(app)
 	switch {
 	case o.path != "":
 		app_open_file(app, o.path, "")
@@ -280,6 +282,7 @@ app_close :: proc(app: ^App) {
 	if !app.headless && app.main.win != nil { prefs_page.placement_keep(&app.placement, &app.prefs, app.main.win) }
 	ui.post_close(&app.main.state)
 	worker_stop(&app.worker)
+	sign_close(app)   // (its texture is the renderer's: before the window goes)
 	// (their answers find the window closed: each task frees what it was given)
 	tasks.stop(&app.pool)
 	prefs_page.updates_stop(&app.updates)
@@ -520,8 +523,8 @@ stamp_click :: proc(app: ^App, p: Snapshot_Page, at: [2]f32) {
 	app.text.open, app.text.id, app.text.index, app.text.focus = true, p.id, k, true
 	if k >= 0 {
 		st := p.stamps[k]
-		app.style = st.stamp
-		app.style.text = ""
+		// (the text tool's style only: a signature's font and effects stay on the stamp, the worker keeps them)
+		app.style.font, app.style.size, app.style.color, app.style.background = st.stamp.font, st.stamp.size, st.stamp.color, st.stamp.background
 		app.text.box = st.box
 		app.text.before = strings.clone(st.stamp.text)
 		ui.line_edit_set(&app.text.field, st.stamp.text)

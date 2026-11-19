@@ -21,8 +21,12 @@ want it. A protected PDF asks for its password in the window.
 | ![The same form with its fields drawn](docs/screenshots/layer.png) | ![The command palette](docs/screenshots/palette.png) |
 | **Written and drawn on a page** | **The password, in the window** |
 | ![A name written in the form's empty field, the title circled in red, a line highlighted](docs/screenshots/text.png) | ![A protected PDF asks its password](docs/screenshots/locked.png) |
-| **The settings (Ctrl+,)** | **Light** |
-| ![The settings](docs/screenshots/settings.png) | ![The light theme](docs/screenshots/light.png) |
+| **A signature, typed in a hand you choose (S)** | **Or drawn, with a fountain pen's ink** |
+| ![The signature's dialog: the name in five hands, its slant, its flourish, the place and the date](docs/screenshots/signature.png) | ![A signature drawn on the pad with a fountain pen, thick and thin](docs/screenshots/signature-drawn.png) |
+| **Signed where you click** | **The settings (Ctrl+,)** |
+| ![The form signed at its foot, the signature following the pointer](docs/screenshots/signed.png) | ![The settings](docs/screenshots/settings.png) |
+| **Light** | |
+| ![The light theme](docs/screenshots/light.png) | |
 
 One small native program, written in [Odin](https://odin-lang.org) on
 [gui_toolkit](https://github.com/sachahjkl/gui_toolkit), its PDF engine built in
@@ -37,6 +41,9 @@ Linux. Its site:
   out as its own PDF. Every edit undoes and redoes; a copy is saved, the original replaced only after a question.
 - **Write and draw on a page**: text (T) in a font, size and colour you choose, on a background that can hide what is
   under it; rectangles, ellipses to circle a word, lines, arrows, the pen, the highlighter. Drag a mark to move it.
+- **Sign** (S): your name in one of five script hands, slanted, with a flourish; or drawn on a pad with a ballpoint, a
+  fountain pen, a felt pen or a brush, whose ink thins when you go fast. "Read and approved", the place and the date
+  if you want them. Click on each page that asks for it; the signature is kept for next time.
 - **Fast**: only the pages near the view are drawn, on a thread of their own. A long document scrolls as a short one,
   and the window never waits.
 - **It remembers**: each PDF opens again at its page and its zoom; the last one comes back at the start; the recent
@@ -62,7 +69,8 @@ One version, everything in it; a licence only says you support it. What comes ne
 | Alt+Up, Alt+Down | move the page |
 | Delete, Ctrl+Shift+N, Ctrl+I | remove the page; add a blank one; add the pages of a PDF |
 | Ctrl+Z, Ctrl+Shift+Z | undo, redo |
-| F2 | edit a text block |
+| T, R, E, L, A, P, H | text, rectangle, ellipse, line, arrow, pen, highlighter |
+| S | sign: the signature's dialog, then a click on each page |
 | Ctrl+L, Ctrl+B | the form layer; the thumbnails |
 | Ctrl+Shift+C | copy the path |
 | Ctrl+N, F11 | a new window; full screen |
