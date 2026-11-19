@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.5.0] - 2026-11-19 10:23
+
+### Added
+- **PDF thumbnails in the file managers.** Windows Explorer and the Linux file managers show each PDF as its first page, the form layer hidden. The install sets it up (a box of its own, on by default): on Windows Feuille writes its own small provider beside the program, which it carries inside, so nothing else is installed.
+
 ## [0.4.0] - 2026-11-17 21:28
 
 ### Added
@@ -55,6 +60,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.5.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.5.0
 [0.4.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.4.0
 [0.3.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.3.0
 [0.2.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.2.0
