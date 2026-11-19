@@ -24,7 +24,7 @@ and feuille's fixtures with both:
 - 2.8 times faster: 369 ms against 1023 ms.
 
 The edits PDFium made (turn, remove, import, move, save) are list operations plus the toolkit's writer; the one edit
-hayro's model cannot make, changing a document's own words, gave way to stamps (features/stamps.md).
+hayro's model cannot make, changing a document's own words, gave way to stamps (features/marks.md).
 
 ## The worker
 

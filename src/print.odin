@@ -91,7 +91,7 @@ tasks_add_print :: proc(w: ^Worker, j: ^Print_Job) {
 
 @(private = "file")
 print_job_free :: proc(j: ^Print_Job) {
-	for p in j.pages { stamps_free(p.stamps) }
+	for p in j.pages { marks_free(p) }
 	delete(j.pages)
 	delete(j.file)
 	delete(j.title)

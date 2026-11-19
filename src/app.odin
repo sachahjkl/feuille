@@ -48,7 +48,7 @@ Shown :: struct {
 	seen:    u64,   // the frame it was last drawn in
 }
 
-// A stamp being written: the window's field over it (src/md/features/stamps.md). Its states: none; open (the field
+// A stamp being written: the window's field over it (src/md/features/marks.md). Its states: none; open (the field
 // over the stamp, or at the point clicked for a new one); then committed or given up.
 Text_Edit :: struct {
 	open:   bool,
@@ -132,9 +132,13 @@ App :: struct {
 	thumb_layout:  Layout,
 	drag_id:       u64,           // a thumbnail dragged (0: none)
 	drop_at:       int,           // where it would go, an index
-	text_mode:     bool,          // the text tool: a click on a page places a stamp, or opens the one under it
+	tool:          Tool,          // the marking tool on (marks.odin)
 	text:          Text_Edit,
 	style:         pdf.Stamp,     // the style of the stamp written and of the next ones (its text unused)
+	ink:           pdf.Shape,     // the style of the next shapes (its kind and points unused)
+	marker:        [4]u8,         // the highlighter's colour
+	chosen:        Mark_Ref,      // the mark the style bar and Delete act on (kind None: none)
+	gesture:       Gesture,       // a press of a tool on a page, until its release
 	go_jump:       bool,          // go_to is reached at once, not scrolled to (a document opened at its last page)
 	memory:        Memory,        // the recent PDFs, each one's page and zoom (recent.odin)
 	reopening:     bool,          // the open under way is the last document's, at the start: a failure is not said
@@ -172,6 +176,7 @@ app_open :: proc(o: App_Options) -> ^App {
 	app := new(App)
 	app.headless = o.headless
 	app.style = {size = STAMP_SIZE}
+	app.ink, app.marker = SHAPE_STYLE, HIGHLIGHT_INK
 	app.go_to = -1
 	// (read once: after an update the file is the new program, and a restart reads no file on this thread)
 	app.exe = strings.clone(process.executable_path())
@@ -311,6 +316,7 @@ app_free :: proc(app: ^App) {
 	layout_destroy(&app.thumb_layout)
 	text_edit_close(app)
 	ui.line_edit_destroy(&app.text.field)
+	delete(app.gesture.points)
 	delete(app.leave_path)
 	delete(app.overwrite)
 	delete(app.asked)
@@ -408,7 +414,7 @@ on_opened :: proc(data: rawptr, _: u64) {
 		app.to_top = true
 		app.current = 0
 		app.layer = app.settings.layer   // (each document opens as the settings say: masked, unless asked)
-		app.text_mode = false
+		app.tool, app.chosen = .None, {}
 		app.selected, app.selected_at = s.pages[0].id, 0
 		app.reopening = false
 		ui.line_edit_clear(&app.password)

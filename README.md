@@ -19,8 +19,8 @@ want it. A protected PDF asks for its password in the window.
 | The form layer, on demand (Ctrl+L) | Every command at Ctrl+K |
 |---|---|
 | ![The same form with its fields drawn](docs/screenshots/layer.png) | ![The command palette](docs/screenshots/palette.png) |
-| **Text put on a page (T)** | **The password, in the window** |
-| ![A name written in the form's empty field, on a yellow ground, the style in the toolbar](docs/screenshots/text.png) | ![A protected PDF asks its password](docs/screenshots/locked.png) |
+| **Written and drawn on a page** | **The password, in the window** |
+| ![A name written in the form's empty field, the title circled in red, a line highlighted](docs/screenshots/text.png) | ![A protected PDF asks its password](docs/screenshots/locked.png) |
 | **The settings (Ctrl+,)** | **Light** |
 | ![The settings](docs/screenshots/settings.png) | ![The light theme](docs/screenshots/light.png) |
 
@@ -35,8 +35,8 @@ Linux. Its site:
 - **Nothing blocks the page**: the signatures, annotations and form fields stay hidden unless you ask (Ctrl+L).
 - **Arrange the pages**: turn, add, remove, reorder them (drag their thumbnails), add the pages of another PDF, take one
   out as its own PDF. Every edit undoes and redoes; a copy is saved, the original replaced only after a question.
-- **Put text on a page** (T, then a click): a name, a date, a note, in a font, size and colour you choose, on a
-  background that can hide what is under it.
+- **Write and draw on a page**: text (T) in a font, size and colour you choose, on a background that can hide what is
+  under it; rectangles, ellipses to circle a word, lines, arrows, the pen, the highlighter. Drag a mark to move it.
 - **Fast**: only the pages near the view are drawn, on a thread of their own. A long document scrolls as a short one,
   and the window never waits.
 - **It remembers**: each PDF opens again at its page and its zoom; the last one comes back at the start; the recent
@@ -77,7 +77,7 @@ One version, everything in it; a licence only says you support it. What comes ne
 
 ## Documentation
 
-- [Usage](docs/usage.md): reading, arranging, putting text on a page.
+- [Usage](docs/usage.md): reading, arranging, writing and drawing on a page.
 - [Configuration](docs/configuration.md): every preference.
 - [The desktop](docs/desktop.md): the install, the menu, one window.
 - [Architecture](docs/architecture.md): the files, the threads and the tests.

@@ -3,7 +3,7 @@
 ## Purpose
 
 Arrange the pages: turn a page scanned sideways, add a blank page or the pages of another PDF, remove a page, change
-the order, take one page out as its own PDF, put text on a page (stamps.md). Then save a copy.
+the order, take one page out as its own PDF, put text and shapes on a page (marks.md). Then save a copy.
 
 ## Decisions
 

@@ -11,6 +11,7 @@ package feuille
 
 import "base:runtime"
 import "core:os"
+import "core:slice"
 import "core:strings"
 import "core:sync"
 import pdf "gt:pdf"
@@ -25,14 +26,22 @@ Snapshot_Stamp :: struct {
 	stamp: pdf.Stamp,
 }
 
+// A shape as the interface knows it: its points and its box on the page shown (shares of its size), and its style
+// (its points the snapshot's own, as shares).
+Snapshot_Shape :: struct {
+	box:   [4]f32,
+	shape: pdf.Shape,
+}
+
 // A page as the interface knows it: its identity for good, its size in points as shown, the quarter turns feuille gave
-// it, the version of its content (a turn or a stamp moves it: the pictures of another version are stale), its stamps.
+// it, the version of its content (a turn or a mark moves it: the pictures of another version are stale), its marks.
 Snapshot_Page :: struct {
 	id:       u64,
 	size:     [2]f32,
 	rotation: int,
 	version:  u64,
 	stamps:   []Snapshot_Stamp,
+	shapes:   []Snapshot_Shape,
 }
 
 // The document's shape after a change (src/md/data/snapshot.md). Immutable once posted; snapshot_free frees it.
@@ -52,6 +61,8 @@ snapshot_free :: proc(s: ^Snapshot) {
 	for p in s.pages {
 		for st in p.stamps { delete(st.stamp.text) }
 		delete(p.stamps)
+		for sh in p.shapes { delete(sh.shape.points) }
+		delete(p.shapes)
 	}
 	delete(s.pages)
 	free(s)
@@ -184,7 +195,7 @@ worker_stop :: proc(w: ^Worker) {
 @(private = "file")
 document_close :: proc(w: ^Worker) {
 	edits_reset(&w.edits)
-	for p in w.pages { stamps_free(p.page.stamps) }
+	for p in w.pages { marks_free(p.page) }
 	clear(&w.pages)
 	for s in w.sources { pdf.close(s) }
 	clear(&w.sources)
@@ -228,6 +239,16 @@ stamp_ask_make :: proc(w: ^Worker, id: u64, index: int, style: pdf.Stamp, text: 
 	a := edit_ask_make(w, .Stamp, id = id, text = text)
 	a.index, a.stamp, a.at, a.moved = index, style, at, moved
 	a.stamp.text = ""
+	return a
+}
+
+// A shape's ask: shape `index` of page `id` (-1: a new one) set to `style` (its kind for a new one); `points` (shares of
+// the page shown, copied): its new place, nil to keep it; `remove`: it goes.
+shape_ask_make :: proc(w: ^Worker, id: u64, index: int, style: pdf.Shape, points: [][2]f32 = nil, remove := false) -> Edit_Ask {
+	a := edit_ask_make(w, .Shape, id = id)
+	a.index, a.shape, a.remove = index, style, remove
+	a.shape.points = nil
+	if points != nil { a.points = slice.clone(points, w.allocator) }
 	return a
 }
 
@@ -326,19 +347,23 @@ open_error :: proc(e: pdf.Error) -> Open_Error {
 	return .Failed
 }
 
+// A point of the page as its file shows it, in points, on the page shown (turn_back's inverse).
+turn_forward :: proc(a: [2]f32, p: pdf.Page, shown: [2]f32) -> [2]f32 {
+	k := ((p.turns % 4) + 4) % 4
+	size := k % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	switch k {
+	case 1: return {size.y - a.y, a.x}
+	case 2: return {size.x - a.x, size.y - a.y}
+	case 3: return {a.y, size.x - a.x}
+	}
+	return a
+}
+
 // A stamp's box on the page shown, as shares: its corner turned with the page, its sides with the stamp and the page.
 @(private = "file")
 stamp_box :: proc(p: pdf.Page, s: pdf.Stamp, shown: [2]f32) -> [4]f32 {
 	k := ((p.turns % 4) + 4) % 4
-	size := k % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
-	a := s.at
-	corner: [2]f32
-	switch k {
-	case 1: corner = {size.y - a.y, a.x}
-	case 2: corner = {size.x - a.x, size.y - a.y}
-	case 3: corner = {a.y, size.x - a.x}
-	case:   corner = a
-	}
+	corner := turn_forward(s.at, p, shown)
 	wh := pdf.stamp_size(s)
 	lo, hi := corner, corner
 	for c in ([4][2]f32{{0, 0}, {wh.x, 0}, {0, wh.y}, wh}) {
@@ -369,6 +394,20 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 			for st, k in e.page.stamps {
 				sp.stamps[k] = {box = stamp_box(e.page, st, shown), stamp = st}
 				sp.stamps[k].stamp.text = strings.clone(st.text)
+			}
+		}
+		if len(e.page.shapes) > 0 {
+			sp.shapes = make([]Snapshot_Shape, len(e.page.shapes))
+			for sh, k in e.page.shapes {
+				sp.shapes[k] = {shape = sh}
+				sp.shapes[k].shape.points = make([][2]f32, len(sh.points))
+				lo, hi := [2]f32{max(f32), max(f32)}, [2]f32{min(f32), min(f32)}
+				for q, n in sh.points {
+					v := turn_forward(q, e.page, shown) / shown
+					sp.shapes[k].shape.points[n] = v
+					lo, hi = {min(lo.x, v.x), min(lo.y, v.y)}, {max(hi.x, v.x), max(hi.y, v.y)}
+				}
+				sp.shapes[k].box = {lo.x, lo.y, hi.x, hi.y}
 			}
 		}
 		s.pages[i] = sp

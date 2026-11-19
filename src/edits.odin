@@ -6,6 +6,7 @@ package feuille
 // very page, its turns and its stamps. Pages are named by their identity; the worker finds their index when it applies.
 
 import "core:os"
+import "core:slice"
 import "core:strings"
 import pdf "gt:pdf"
 
@@ -18,6 +19,8 @@ Edit_Kind :: enum u8 {
 	Move,      // the page `id` to index `to`
 	Stamp,     // stamp `index` of page `id` (-1: a new one at `at`) set to `stamp`, its words `text` ("": removed);
 	           // `moved`: it goes to `at` (shares of the page shown)
+	Shape,     // shape `index` of page `id` (-1: a new one) set to `shape`'s style; `points` (shares of the page shown):
+	           // its new place (nil: it stays); `remove`: it goes
 	Undo,
 	Redo,
 	Save,      // a copy of the document at `path`; it becomes the document's file
@@ -34,7 +37,10 @@ Edit_Ask :: struct {
 	at:     [2]f32,
 	moved:  bool,
 	layer:  bool,
+	remove: bool,
 	stamp:  pdf.Stamp,   // its style (its text is `text`)
+	shape:  pdf.Shape,   // its style and kind (its points are `points`)
+	points: [][2]f32,    // owned by the ask
 	text:   string,      // owned by the ask
 	path:   string,      // owned by the ask
 	ids:    []u64,       // owned by the ask
@@ -44,6 +50,7 @@ edit_ask_free :: proc(a: ^Edit_Ask) {
 	delete(a.text)
 	delete(a.path)
 	delete(a.ids)
+	delete(a.points)
 	a^ = {}
 }
 
@@ -68,6 +75,27 @@ stamps_free :: proc(stamps: []pdf.Stamp, allocator := context.allocator) {
 	delete(stamps, allocator)
 }
 
+shapes_clone :: proc(shapes: []pdf.Shape, allocator := context.allocator) -> []pdf.Shape {
+	if len(shapes) == 0 { return nil }
+	out := make([]pdf.Shape, len(shapes), allocator)
+	for s, i in shapes {
+		out[i] = s
+		out[i].points = slice.clone(s.points, allocator)
+	}
+	return out
+}
+
+shapes_free :: proc(shapes: []pdf.Shape, allocator := context.allocator) {
+	for s in shapes { delete(s.points, allocator) }
+	delete(shapes, allocator)
+}
+
+// A page's marks let go: its stamps and its shapes.
+marks_free :: proc(p: pdf.Page) {
+	stamps_free(p.stamps)
+	shapes_free(p.shapes)
+}
+
 // An operation as the worker applies it. A Batch applies its parts in order; its inverse is theirs in reverse. An
 // operation that carries a page or stamps owns them until it is applied: then the list owns them.
 Op :: union {
@@ -75,21 +103,23 @@ Op :: union {
 	Op_Remove,
 	Op_Insert,
 	Op_Move,
-	Op_Stamps,
+	Op_Marks,
 	Op_Batch,
 }
 
 Op_Turn   :: struct { id: u64, turns: int }               // to these turns
 Op_Remove :: struct { id: u64 }
-Op_Insert :: struct { entry: Doc_Page, at: int }          // (its stamps owned)
+Op_Insert :: struct { entry: Doc_Page, at: int }          // (its marks owned)
 Op_Move   :: struct { id: u64, to: int }
-Op_Stamps :: struct { id: u64, stamps: []pdf.Stamp }      // the page's stamps become these (owned)
+Op_Marks  :: struct { id: u64, stamps: []pdf.Stamp, shapes: []pdf.Shape }   // the page's marks become these (owned)
 Op_Batch  :: struct { ops: []Op }                         // (owned)
 
 op_free :: proc(op: ^Op) {
 	switch &o in op {
-	case Op_Insert: stamps_free(o.entry.page.stamps)
-	case Op_Stamps: stamps_free(o.stamps)
+	case Op_Insert: marks_free(o.entry.page)
+	case Op_Marks:
+		stamps_free(o.stamps)
+		shapes_free(o.shapes)
 	case Op_Batch:
 		for &p in o.ops { op_free(&p) }
 		delete(o.ops)
@@ -163,7 +193,7 @@ apply :: proc(w: ^Worker, op: ^Op) -> (inverse: Op, ok: bool) {
 		at := clamp(o.at, 0, len(w.pages))
 		inject_at(&w.pages, at, o.entry)
 		id := o.entry.id
-		o.entry.page.stamps = nil   // (the list owns them now)
+		o.entry.page.stamps, o.entry.page.shapes = nil, nil   // (the list owns them now)
 		return Op_Remove{id}, true
 	case Op_Move:
 		i := index_of(w, o.id)
@@ -173,14 +203,15 @@ apply :: proc(w: ^Worker, op: ^Op) -> (inverse: Op, ok: bool) {
 		ordered_remove(&w.pages, i)
 		inject_at(&w.pages, to, entry)
 		return Op_Move{o.id, i}, true
-	case Op_Stamps:
+	case Op_Marks:
 		i := index_of(w, o.id)
 		if i < 0 { return }
 		p := &w.pages[i].page
-		old := p.stamps
+		old_stamps, old_shapes := p.stamps, p.shapes
 		p.stamps, o.stamps = o.stamps, nil
+		p.shapes, o.shapes = o.shapes, nil
 		touch(w, o.id)
-		return Op_Stamps{o.id, old}, true
+		return Op_Marks{o.id, old_stamps, old_shapes}, true
 	case Op_Batch:
 		done := make([dynamic]Op, w.allocator)
 		for &p in o.ops {
@@ -252,6 +283,8 @@ edit_now :: proc(w: ^Worker, a: ^Edit_Ask) -> (changed: bool) {
 		return do_op(w, Op_Move{a.id, a.to})
 	case .Stamp:
 		return stamp(w, a)
+	case .Shape:
+		return shape(w, a)
 	case .Undo:
 		return step(w, true)
 	case .Redo:
@@ -285,6 +318,7 @@ pages_clone :: proc(w: ^Worker, allocator := context.allocator) -> []pdf.Page {
 	for p, i in w.pages {
 		out[i] = p.page
 		out[i].stamps = stamps_clone(p.page.stamps, allocator)
+		out[i].shapes = shapes_clone(p.page.shapes, allocator)
 	}
 	return out
 }
@@ -397,5 +431,56 @@ stamp :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	case:
 		return false
 	}
-	return do_op(w, Op_Stamps{a.id, stamps_clone(list[:], w.allocator)})
+	return do_op(w, Op_Marks{a.id, stamps_clone(list[:], w.allocator), shapes_clone(p.shapes, w.allocator)})
+}
+
+// The shapes of page `id` after the ask: a new one, one restyled, moved or removed.
+@(private = "file")
+shape :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
+	i := index_of(w, a.id)
+	if i < 0 { return false }
+	p := w.pages[i].page
+	shown := pdf.shown_size(p)
+	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	list := shapes_clone(p.shapes, w.allocator)
+	// (the new place, from the shares of the page shown to the page as its file shows it)
+	points: [][2]f32
+	if a.points != nil {
+		points = make([][2]f32, len(a.points), w.allocator)
+		for q, k in a.points { points[k] = turn_back(q, shown, size, p.turns) }
+	}
+	out := make([dynamic]pdf.Shape, w.allocator)
+	append(&out, ..list)
+	delete(list, w.allocator)
+	switch {
+	case a.index < 0:
+		if len(points) < 2 {
+			delete(points, w.allocator)
+			shapes_free(out[:], w.allocator)
+			return false
+		}
+		s := a.shape
+		s.points = points
+		append(&out, s)
+	case a.index < len(out):
+		old := &out[a.index]
+		if a.remove {
+			delete(old.points, w.allocator)
+			ordered_remove(&out, a.index)
+		} else {
+			s := a.shape
+			s.kind = old.kind
+			s.points = old.points
+			if points != nil {
+				delete(old.points, w.allocator)
+				s.points = points
+			}
+			old^ = s
+		}
+	case:
+		delete(points, w.allocator)
+		shapes_free(out[:], w.allocator)
+		return false
+	}
+	return do_op(w, Op_Marks{a.id, stamps_clone(p.stamps, w.allocator), out[:]})
 }

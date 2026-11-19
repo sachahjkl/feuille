@@ -57,3 +57,16 @@ it to remove it. Each text turns, moves and goes with its page, and Ctrl+Z undoe
 - The fonts are PDF's own (Helvetica, Times, Courier): every reader shows them, nothing is embedded.
 - They hold the characters of Western European languages; another character is written as "?".
 - The text goes on top of the page: a background hides what is under it. The document's own words do not change.
+
+## Draw on a page
+
+The toolbar's drawing tools, or their keys: Rectangle (R), Ellipse (E: to circle something), Line (L), Arrow (A),
+Pen (P: freehand), Highlighter (H). Drag on the page to draw. The style bar shows the line's colour, its width and, for
+a rectangle or an ellipse, the fill; the highlighter's colours are translucent, and the words under them stay
+readable.
+
+## Move, change or remove a mark
+
+With any of these tools on (text included), press on a text or a shape and drag it: it moves. A click on a text opens
+it. The mark you took is outlined: the style bar changes it at once, and Delete removes it (the page stays). Escape
+lets it go, then leaves the tool. Every mark undoes and redoes, and goes with its page when the page turns or moves.

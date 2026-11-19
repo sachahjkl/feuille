@@ -40,7 +40,9 @@ fields). It arranges the pages (turn, add, remove, reorder), puts text on them, 
 - A page keeps its identity through reorders and inserts: the cache keys on it, so a move re-renders nothing.
 - A page's turns and stamps are part of its value: the render and the save read the same list, so what is shown is
   what is saved.
-- The text tool: off → on (a click places a stamp) → a stamp's field open → committed or given up.
+- The marking tools: none → one on (Text, a shape, the Highlighter). With one on, a press: on a mark → selected,
+  then dragged (moved on release) or clicked (a text's field opens); elsewhere → a shape drawn while dragging (made on
+  release) or, for Text, a new field. A text's field: open → committed or given up.
 - The tests make their PDFs with a small writer (`src/fixture`): no binary file in the repository.
 
 ## File Index
@@ -58,7 +60,7 @@ fields). It arranges the pages (turn, add, remove, reorder), puts text on them, 
   undo, the saved copy
 - [features/thumbnails.md](features/thumbnails.md): the PDFs' first pages in Explorer and the Linux file managers,
   why Feuille's own DLL on Windows, why it is embedded
-- [features/stamps.md](features/stamps.md): text put on a page, its style, where it goes, why not the document's own
-  words
+- [features/marks.md](features/marks.md): text and shapes put on a page, the tools, moving and restyling a mark,
+  where it goes, why not the document's own words nor annotations
 - [infrastructure/engine.md](infrastructure/engine.md): gt:pdf, why PDFium went (hayro measured against it), the
   worker, the fixtures

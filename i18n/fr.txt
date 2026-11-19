@@ -52,6 +52,27 @@ fr Descendre la page
 en Put text on a page (click where)
 fr Poser du texte sur une page (cliquer à l'endroit voulu)
 
+en Draw a rectangle
+fr Dessiner un rectangle
+
+en Draw an ellipse (circle something)
+fr Dessiner une ellipse (entourer)
+
+en Draw a line
+fr Tracer un trait
+
+en Draw an arrow
+fr Tracer une flèche
+
+en Draw freely (pen)
+fr Dessiner à main levée (stylo)
+
+en Highlight
+fr Surligner
+
+en Remove the chosen mark
+fr Retirer la marque choisie
+
 en Show the form layer
 fr Afficher la couche formulaire
 
@@ -193,9 +214,6 @@ fr page %d
 en Add the pages of a PDF
 fr Ajouter les pages d'un PDF
 
-en Click where the text goes, or on a text to change it; Escape leaves
-fr Cliquez où va le texte, ou sur un texte pour le changer ; Échap pour sortir
-
 en Feuille's keys
 fr Les touches de Feuille
 
@@ -270,6 +288,42 @@ fr %s ne peut pas être affiché dans son dossier
 
 en No window could be started
 fr Aucune fenêtre n'a pu être lancée
+
+en Click where the text goes, or on a text to change it; Escape leaves
+fr Cliquez où va le texte, ou sur un texte pour le changer ; Échap pour sortir
+
+en Drag on the page to draw; drag a mark to move it, Delete removes it; Escape leaves
+fr Glissez sur la page pour dessiner ; glissez une marque pour la déplacer, Suppr la retire ; Échap pour sortir
+
+en Sans
+fr Sans
+
+en Serif
+fr Serif
+
+en Mono
+fr Mono
+
+en Bold
+fr Gras
+
+en Italic
+fr Italique
+
+en Text colour
+fr Couleur du texte
+
+en Background
+fr Fond
+
+en Highlighter colour
+fr Couleur du surligneur
+
+en Line colour
+fr Couleur du trait
+
+en Fill
+fr Remplissage
 
 en Open with
 fr Ouvrir avec
@@ -420,27 +474,6 @@ fr Mot de passe faux
 
 en Cancel
 fr Annuler
-
-en Sans
-fr Sans
-
-en Serif
-fr Serif
-
-en Mono
-fr Mono
-
-en Bold
-fr Gras
-
-en Italic
-fr Italique
-
-en Text colour
-fr Couleur du texte
-
-en Background
-fr Fond
 
 en Text to put on the page
 fr Texte à poser sur la page

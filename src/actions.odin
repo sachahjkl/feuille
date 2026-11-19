@@ -30,6 +30,13 @@ Action :: enum u8 {
 	Move_Up,
 	Move_Down,
 	Edit_Text,
+	Draw_Rect,
+	Draw_Ellipse,
+	Draw_Line,
+	Draw_Arrow,
+	Draw_Pen,
+	Highlight,
+	Remove_Mark,
 	Layer,
 	Thumbnails,
 	Zoom_In,
@@ -86,6 +93,13 @@ ACTIONS := [Action]ui.Command{
 	.Move_Up       = {id = "move_up", label = i18n.later("Move the page up"), group = i18n.later("Page"), keys = {{.Up, {.Alt}}}, icon = lucide.ARROW_UP_TO_LINE, tags = {"reorder", "earlier"}},
 	.Move_Down     = {id = "move_down", label = i18n.later("Move the page down"), group = i18n.later("Page"), keys = {{.Down, {.Alt}}}, icon = lucide.ARROW_DOWN_TO_LINE, tags = {"reorder", "later"}},
 	.Edit_Text     = {id = "add_text", label = i18n.later("Put text on a page (click where)"), group = i18n.later("Edit"), keys = {{.T, {}}, {.F2, {}}}, icon = lucide.TYPE, tags = {"words", "write", "stamp", "sign", "type", "annotate", "text box"}, toggle = true},
+	.Draw_Rect     = {id = "draw_rect", label = i18n.later("Draw a rectangle"), group = i18n.later("Edit"), keys = {{.R, {}}}, icon = lucide.SQUARE, tags = {"box", "frame", "shape", "annotate"}, toggle = true},
+	.Draw_Ellipse  = {id = "draw_ellipse", label = i18n.later("Draw an ellipse (circle something)"), group = i18n.later("Edit"), keys = {{.E, {}}}, icon = lucide.CIRCLE, tags = {"circle", "ring", "round", "shape", "annotate"}, toggle = true},
+	.Draw_Line     = {id = "draw_line", label = i18n.later("Draw a line"), group = i18n.later("Edit"), keys = {{.L, {}}}, icon = lucide.SLASH, tags = {"underline", "strike", "shape", "annotate"}, toggle = true},
+	.Draw_Arrow    = {id = "draw_arrow", label = i18n.later("Draw an arrow"), group = i18n.later("Edit"), keys = {{.A, {}}}, icon = lucide.ARROW_UP_RIGHT, tags = {"point", "shape", "annotate"}, toggle = true},
+	.Draw_Pen      = {id = "draw_pen", label = i18n.later("Draw freely (pen)"), group = i18n.later("Edit"), keys = {{.P, {}}}, icon = lucide.PENCIL, tags = {"ink", "freehand", "sign", "scribble", "annotate"}, toggle = true},
+	.Highlight     = {id = "highlight", label = i18n.later("Highlight"), group = i18n.later("Edit"), keys = {{.H, {}}}, icon = lucide.HIGHLIGHTER, tags = {"marker", "mark", "annotate"}, toggle = true},
+	.Remove_Mark   = {id = "remove_mark", label = i18n.later("Remove the chosen mark"), group = i18n.later("Edit"), keys = {{.Backspace, {}}}, icon = lucide.TRASH_2, tags = {"delete", "erase", "shape", "text"}},
 	.Layer         = {id = "layer", label = i18n.later("Show the form layer"), group = i18n.later("View"), keys = {{.L, {.Ctrl}}}, icon = lucide.LAYERS_2, tags = {"signatures", "annotations", "fields", "form"}, toggle = true},
 	.Thumbnails    = {id = "thumbnails", label = i18n.later("Show the thumbnails"), group = i18n.later("View"), keys = {{.B, {.Ctrl}}}, icon = lucide.PANEL_LEFT, tags = {"sidebar", "pages", "overview"}, toggle = true},
 	.Zoom_In       = {id = "zoom_in", label = i18n.later("Zoom in"), group = i18n.later("View"), icon = lucide.ZOOM_IN, tags = {"bigger", "magnify"}},
@@ -138,8 +152,9 @@ action_enabled :: proc(app: ^App, a: Action) -> bool {
 	case .Remove_Page:   return doc && index >= 0 && len(s.pages) > 1
 	case .Move_Up:       return doc && index > 0
 	case .Move_Down:     return doc && index >= 0 && index < len(s.pages) - 1
+	case .Remove_Mark:   return doc && app.chosen.kind != .None
 	case .Save, .Print, .Extract_Page, .Rotate_Right, .Rotate_Left, .Insert_Blank, .Insert_File, .Edit_Text,
-	     .Layer, .Thumbnails, .Zoom_In, .Zoom_Out, .Fit, .Previous_Page, .Next_Page, .First_Page, .Last_Page, .Go_To_Page:
+	     .Draw_Rect, .Draw_Ellipse, .Draw_Line, .Draw_Arrow, .Draw_Pen, .Highlight, .Layer, .Thumbnails, .Zoom_In, .Zoom_Out, .Fit, .Previous_Page, .Next_Page, .First_Page, .Last_Page, .Go_To_Page:
 		return doc
 	// (the file's own acts: the document shown, whatever the page shows over it)
 	case .Open_With, .Reveal, .Copy_Path:
@@ -161,7 +176,13 @@ action_on :: proc(app: ^App, a: Action) -> bool {
 	#partial switch a {
 	case .Layer:      return app.layer
 	case .Thumbnails: return app.thumbs_shown
-	case .Edit_Text:  return app.text_mode
+	case .Edit_Text:    return app.tool == .Text
+	case .Draw_Rect:    return app.tool == .Rect
+	case .Draw_Ellipse: return app.tool == .Ellipse
+	case .Draw_Line:    return app.tool == .Line
+	case .Draw_Arrow:   return app.tool == .Arrow
+	case .Draw_Pen:     return app.tool == .Pen
+	case .Highlight:    return app.tool == .Highlight
 	}
 	return false
 }
@@ -186,15 +207,23 @@ action_run :: proc(app: ^App, a: Action) {
 	case .Redo:          worker_edit(w, edit_ask_make(w, .Redo))
 	case .Rotate_Right:  worker_edit(w, edit_ask_make(w, .Rotate, id = id, turns = 1))
 	case .Rotate_Left:   worker_edit(w, edit_ask_make(w, .Rotate, id = id, turns = -1))
-	case .Remove_Page:   worker_edit(w, edit_ask_make(w, .Remove, id = id))
+	case .Remove_Page:
+		// (Delete with a mark chosen takes the mark, never its page)
+		if !mark_remove(app) { worker_edit(w, edit_ask_make(w, .Remove, id = id)) }
 	case .Insert_Blank:  worker_edit(w, edit_ask_make(w, .Blank, id = id))
 	case .Insert_File:
 		ui.file_dialog(&app.main.state, .Open, {owner = app.main.win, title = i18n.tr("Add the pages of a PDF"), filters = PDF_FILTERS[:], all_files = true, remember_id = "open"}, insert_chosen, app)
 	case .Move_Up:       worker_edit(w, edit_ask_make(w, .Move, id = id, to = selected_index(app) - 1))
 	case .Move_Down:     worker_edit(w, edit_ask_make(w, .Move, id = id, to = selected_index(app) + 1))
 	case .Edit_Text:
-		app.text_mode = !app.text_mode
-		if app.text_mode { say(app, i18n.tr("Click where the text goes, or on a text to change it; Escape leaves")) } else { text_edit_commit(app) }
+		tool_toggle(app, .Text)
+	case .Draw_Rect:     tool_toggle(app, .Rect)
+	case .Draw_Ellipse:  tool_toggle(app, .Ellipse)
+	case .Draw_Line:     tool_toggle(app, .Line)
+	case .Draw_Arrow:    tool_toggle(app, .Arrow)
+	case .Draw_Pen:      tool_toggle(app, .Pen)
+	case .Highlight:     tool_toggle(app, .Highlight)
+	case .Remove_Mark:   _ = mark_remove(app)
 	case .Layer:         app.layer = !app.layer
 	case .Thumbnails:    app.thumbs_shown = !app.thumbs_shown
 	case .Zoom_In:       ui.zoom_zone_by(&app.zone, ui.feel(&app.main.state).zoom_step)

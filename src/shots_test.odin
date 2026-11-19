@@ -11,6 +11,7 @@ import "core:testing"
 import host "gt:host"
 import "gt:testkit"
 import session "gt:testkit/session"
+import "gt:ui"
 import fixture "fixture"
 
 SHOTS :: #config(FEUILLE_SHOTS, "")
@@ -75,6 +76,16 @@ shots :: proc(t: ^testing.T) {
 		rev := app.snapshot.revision
 		session.key(s, .Return)
 		session.wait_until(s, Shot_Revision{app, rev}, proc(s: ^session.Session, r: Shot_Revision) -> bool { return r.app.snapshot.revision > r.after && pictures_ready(s, r.app) }, "the text is on the page")
+		// the title circled in red, a line of the statement highlighted
+		at := proc(page: ^ui.Box, w, h, k, x, y: f32) -> [2]f32 { return {(page.rect.min.x + x * w) * k, (page.rect.min.y + y * h) * k} }
+		session.key(s, .E)
+		rev = app.snapshot.revision
+		session.drag(s, at(page, w, h, k, 0.08, 0.068), at(page, w, h, k, 0.63, 0.112))
+		session.wait_until(s, Shot_Revision{app, rev}, proc(s: ^session.Session, r: Shot_Revision) -> bool { return r.app.snapshot.revision > r.after && pictures_ready(s, r.app) }, "the title is circled")
+		session.key(s, .H)
+		rev = app.snapshot.revision
+		session.drag(s, at(page, w, h, k, 0.105, 0.405), at(page, w, h, k, 0.75, 0.423))
+		session.wait_until(s, Shot_Revision{app, rev}, proc(s: ^session.Session, r: Shot_Revision) -> bool { return r.app.snapshot.revision > r.after && pictures_ready(s, r.app) }, "a line is highlighted")
 		save(s, "text.png")
 		session.key(s, .Escape)
 		session.key(s, .Comma, {.Ctrl})
