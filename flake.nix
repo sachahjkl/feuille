@@ -2,7 +2,12 @@
   description = "feuille: open a PDF at once, arrange its pages, put text on them.";
 
   inputs = {
-    self.submodules = true;
+    # The toolkit, at the submodule's commit: a flake fetched from GitHub is a tarball without submodules
+    # (gui_toolkit docs/toolbox.md, "The flake's toolkit"; feuilletool check holds the two equal).
+    gui_toolkit = {
+      url = "github:sachahjkl/gui_toolkit/09cc2e661479916fa2e901dfc1f0b4db43ac0ef2";
+      flake = false;
+    };
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.2605";
     git-hooks = {
       url = "https://flakehub.com/f/cachix/git-hooks.nix/0.1";
@@ -13,6 +18,7 @@
   outputs = {
     nixpkgs,
     git-hooks,
+    gui_toolkit,
     ...
   }: let
     system = "x86_64-linux";
@@ -71,10 +77,16 @@
       inherit version;
       src = lib.fileset.toSource {
         root = ./.;
-        fileset = lib.fileset.difference ./. (lib.fileset.maybeMissing ./build);
+        fileset = lib.fileset.difference ./. (lib.fileset.unions [(lib.fileset.maybeMissing ./build) (lib.fileset.maybeMissing ./ext/gui_toolkit)]);
       };
+      # (the toolkit from its input, where the submodule goes; writable: its build writes the native library there)
+      postUnpack = ''
+        mkdir -p $sourceRoot/ext
+        cp -r ${gui_toolkit} $sourceRoot/ext/gui_toolkit
+        chmod -R u+w $sourceRoot/ext/gui_toolkit
+      '';
       # the crates of the toolkit's native library (text, PDF), vendored: cargo makes no request
-      cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./ext/gui_toolkit/native/gt/Cargo.lock;};
+      cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = "${gui_toolkit}/native/gt/Cargo.lock";};
 
       nativeBuildInputs = [odin pkgs.cargo pkgs.rustc pkgs.clang pkgs.lld pkgs.autoPatchelfHook pkgs.copyDesktopItems];
       buildInputs = [pkgs.fontconfig pkgs.freetype pkgs.stdenv.cc.cc.lib];

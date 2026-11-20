@@ -29,7 +29,7 @@ Every step is a command of `tools/feuilletool` (`help` lists them):
 - Saving writes a copy. The original is never overwritten without a confirmation.
 - The PDF engine is `src/pdf`. It moves to gui_toolkit (`gt:pdf`) when a second program needs it. What more than one
   program needs goes in gui_toolkit, generic, with its docs, test and changelog fragment; feuille then points to the
-  toolkit's new commit.
+  toolkit's new commit, in the submodule and in `flake.nix`'s `gui_toolkit` input (docs/development.md).
 - A preference is a `config.Def` in `src/settings.odin` with its line in `docs/configuration.md`.
 - Tests never read or write the person's files or desktop: the tests make their PDFs (`src/fixture`),
   and the window is headless.

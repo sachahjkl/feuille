@@ -33,6 +33,11 @@ odin run tools/feuilletool -collection:gt=ext/gui_toolkit/src -out:build/feuille
 `build`, `test` and `check` are gui_toolkit's (`toolbox.build_commands`). `GT=<folder>` builds against another checkout
 of gui_toolkit.
 
+The flake's package does not read the submodule: `nix run github:sachahjkl/feuille` fetches a tarball, which has no
+submodule. It takes the toolkit from the input `gui_toolkit` of `flake.nix`, pinned to a commit. A move of the
+submodule moves the pin too: set the input's url to `github:sachahjkl/gui_toolkit/<the submodule's commit>`, then
+`nix flake lock`. `check` refuses a pin that is not the submodule's commit.
+
 ## A change
 
 - Comments and commit messages are in English. Comments say why.
