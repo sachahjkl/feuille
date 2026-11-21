@@ -430,21 +430,6 @@ fr Mises à jour
 en Rendering
 fr Rendu
 
-en %02d/%02d/%d
-fr %02d/%02d/%d
-
-en Done at %s, on %s
-fr Fait à %s, le %s
-
-en Done at %s
-fr Fait à %s
-
-en On %s
-fr Le %s
-
-en Read and approved
-fr Lu et approuvé
-
 en Signature
 fr Signature
 
@@ -535,8 +520,11 @@ fr Épaisseur du trait
 en Size
 fr Taille
 
-en “Read and approved” above it
-fr « Lu et approuvé » au-dessus
+en Words in
+fr Mots en
+
+en “%s” above it
+fr « %s » au-dessus
 
 en The place and the date under it
 fr Le lieu et la date en dessous

@@ -198,6 +198,40 @@ a_stylus_s_pressure_reaches_the_stroke :: proc(t: ^testing.T) {
 	}
 }
 
+// The words are the signature's language's, whatever the program's: its mention, its caption's turn, its date.
+@(test)
+a_signature_s_words_are_in_its_own_language :: proc(t: ^testing.T) {
+	testing.expect_value(t, sign_date(.French, 2026, 11, 21, context.temp_allocator), "21/11/2026")
+	testing.expect_value(t, sign_date(.English, 2026, 11, 21, context.temp_allocator), "21 November 2026")
+	testing.expect_value(t, sign_date(.German, 2026, 3, 5, context.temp_allocator), "05.03.2026")
+	testing.expect_value(t, sign_date(.Dutch, 2026, 3, 5, context.temp_allocator), "05-03-2026")
+	s := SIGNATURE_DEFAULT
+	s.dated, s.place, s.date = true, "Lyon", "21/11/2026"
+	cases := [?]struct { lang: Sign_Lang, want: string }{
+		{.French, "Fait à Lyon, le 21/11/2026"},
+		{.English, "Done at Lyon, on 21/11/2026"},
+		{.German, "Lyon, den 21/11/2026"},
+		{.Spanish, "En Lyon, a 21/11/2026"},
+		{.Italian, "Lyon, lì 21/11/2026"},
+		{.Dutch, "Opgemaakt te Lyon op 21/11/2026"},
+	}
+	for c in cases {
+		s.lang = c.lang
+		testing.expect_value(t, signature_caption(s), c.want)
+	}
+	s.lang, s.place = .French, ""
+	testing.expect_value(t, signature_caption(s), "Le 21/11/2026")
+	// (kept and read back with its language)
+	s.lang = .German
+	text := signatures_text({s}, context.temp_allocator)
+	back, ok := signatures_parse(text, runtime.heap_allocator())
+	defer {
+		for &b in back { signature_free(&b) }
+		delete(back)
+	}
+	testing.expect(t, ok && len(back) == 1 && back[0].lang == .German, "the language is kept")
+}
+
 // The exported file's text read back gives the same signatures; another file is refused.
 @(test)
 the_signatures_file_reads_back_what_it_wrote :: proc(t: ^testing.T) {

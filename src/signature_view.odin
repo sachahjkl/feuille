@@ -259,7 +259,7 @@ sign_take :: proc(app: ^App, i: int) {
 	signature_free(&s.sig)
 	s.sig = signature_clone(s.lib[s.chosen])
 	if s.sig.date == "" {
-		s.sig.date = signature_today()
+		s.sig.date = signature_today(s.sig.lang)
 	}
 	s.tab = int(s.sig.mode)
 	ui.line_edit_set(&s.name, s.sig.name)
@@ -285,6 +285,8 @@ sign_new :: proc(app: ^App) {
 	sign_sync(s)
 	n := SIGNATURE_DEFAULT
 	n.mode = s.sig.mode
+	// (the language of the one before: a person signs a run of documents in one language)
+	n.lang = s.sig.lang
 	n.strokes = make([dynamic]Stroke)
 	append(&s.lib, n)
 	sign_take(app, len(s.lib) - 1)
@@ -596,8 +598,26 @@ common_part :: proc(app: ^App, em: f32) {
 			if ui.slider("###sign_scale", &s.sig.scale, 0.5, 2, 0.05, "%.2f×", 1) { sign_changed(app) }
 		}
 	}
+	// (the words of the document's language, whatever the program's: each language named in itself)
 	ui.next({width = ui.fill()})
-	if ui.toggle("###sign_mention", i18n.tr("“Read and approved” above it"), &s.sig.mention) { sign_changed(app) }
+	if ui.form_row(i18n.tr("Words in")) {
+		names := make([]string, len(Sign_Lang), context.temp_allocator)
+		for w, k in SIGN_WORDS { names[int(k)] = w.name }
+		lang := int(s.sig.lang)
+		if ui.dropdown("###sign_lang", names, &lang) {
+			old := s.sig.lang
+			s.sig.lang = Sign_Lang(lang)
+			// (today's date, untouched, is written as the new language writes it; a date the person typed stays)
+			if s.sig.date == signature_today(old, context.temp_allocator) {
+				delete(s.sig.date)
+				s.sig.date = signature_today(s.sig.lang)
+				ui.line_edit_set(&s.date, s.sig.date)
+			}
+			sign_changed(app)
+		}
+	}
+	ui.next({width = ui.fill()})
+	if ui.toggle("###sign_mention", fmt.tprintf(i18n.tr("“%s” above it"), SIGN_WORDS[s.sig.lang].mention), &s.sig.mention) { sign_changed(app) }
 	ui.next({width = ui.fill()})
 	if ui.toggle("###sign_dated", i18n.tr("The place and the date under it"), &s.sig.dated) { sign_changed(app) }
 	if s.sig.dated {

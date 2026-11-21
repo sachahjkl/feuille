@@ -71,6 +71,44 @@ SIGN_INKS := [?][3]u8{{20, 20, 24}, {29, 64, 175}, {23, 37, 84}}
 // A stroke of the pad: the pointer's samples, in the pad's units, its time from the stroke's start.
 Stroke :: [dynamic]ink.Sample
 
+// The language a signature's words are written in: the document's, whatever the program's. A contract in English is
+// signed "Read and approved" in a French Feuille.
+Sign_Lang :: enum u8 { French, English, German, Spanish, Italian, Portuguese, Dutch }
+
+// A language's words for a signature: their usual turns, not word-for-word translations. `place_date` takes the place
+// then the date; `months` empty: a numeric date, its parts joined by `date_sep`.
+Sign_Words :: struct {
+	tag:        string,   // its BCP 47 tag's language, as the program's language is named (i18n)
+	name:       string,   // the language in itself: the menu shows it so
+	mention:    string,
+	place_date: string,
+	place_only: string,
+	date_only:  string,
+	months:     [12]string,
+	date_sep:   string,
+}
+
+SIGN_WORDS := [Sign_Lang]Sign_Words{
+	.French     = {tag = "fr", name = "Français", mention = "Lu et approuvé", place_date = "Fait à %s, le %s", place_only = "Fait à %s", date_only = "Le %s", date_sep = "/"},
+	.English    = {tag = "en", name = "English", mention = "Read and approved", place_date = "Done at %s, on %s", place_only = "Done at %s", date_only = "On %s",
+		months = {"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}},
+	.German     = {tag = "de", name = "Deutsch", mention = "Gelesen und genehmigt", place_date = "%s, den %s", place_only = "%s", date_only = "Den %s", date_sep = "."},
+	.Spanish    = {tag = "es", name = "Español", mention = "Leído y aprobado", place_date = "En %s, a %s", place_only = "En %s", date_only = "A %s", date_sep = "/"},
+	.Italian    = {tag = "it", name = "Italiano", mention = "Letto e approvato", place_date = "%s, lì %s", place_only = "%s", date_only = "Lì %s", date_sep = "/"},
+	.Portuguese = {tag = "pt", name = "Português", mention = "Lido e aprovado", place_date = "%s, %s", place_only = "%s", date_only = "%s", date_sep = "/"},
+	.Dutch      = {tag = "nl", name = "Nederlands", mention = "Gelezen en goedgekeurd", place_date = "Opgemaakt te %s op %s", place_only = "Opgemaakt te %s", date_only = "Op %s", date_sep = "-"},
+}
+
+// A new signature's language: the program's when a signature can be written in it, else English.
+sign_lang_default :: proc() -> Sign_Lang {
+	tag := ""
+	if l := i18n.current(); l != nil { tag = l.tag }
+	for w, k in SIGN_WORDS {
+		if strings.has_prefix(tag, w.tag) && (len(tag) == len(w.tag) || tag[len(w.tag)] == '-') { return k }
+	}
+	return .English
+}
+
 // What the person composed. The strings and the strokes are owned (signature_free).
 Signature :: struct {
 	mode:      Sign_Mode,
@@ -84,6 +122,7 @@ Signature :: struct {
 	dated:     bool,     // the line of the place and the date under it
 	place:     string,
 	date:      string,   // not kept: today at each start
+	lang:      Sign_Lang, // the mention's and the caption's
 	scale:     f32,      // the size slider: 0.5 .. 2
 	pen:       Pen_Kind,
 	thickness: f32,      // the pen's width against its preset's: 0.5 .. 2.5
@@ -120,22 +159,30 @@ signature_ready :: proc(s: Signature) -> bool {
 	return s.mode == .Typed ? strings.trim_space(s.name) != "" : len(s.strokes) > 0
 }
 
-// Today, as the caption writes it.
-signature_today :: proc(allocator := context.allocator) -> string {
+// A day as `lang` writes it on a document: "21/11/2026", "21 November 2026", "21.11.2026".
+sign_date :: proc(lang: Sign_Lang, y, m, d: int, allocator := context.allocator) -> string {
+	w := SIGN_WORDS[lang]
+	if w.months[0] != "" { return fmt.aprintf("%d %s %d", d, w.months[clamp(m, 1, 12) - 1], y, allocator = allocator) }
+	return fmt.aprintf("%02d%s%02d%s%d", d, w.date_sep, m, w.date_sep, y, allocator = allocator)
+}
+
+// Today, as the caption writes it in `lang`.
+signature_today :: proc(lang: Sign_Lang, allocator := context.allocator) -> string {
 	// (the local clock: UTC moved by the zone's offset, read as UTC)
 	t := time.time_add(time.now(), time.Duration(timefmt.local_offset_minutes()) * time.Minute)
 	y, m, d := time.date(t)
-	return fmt.aprintf(i18n.tr("%02d/%02d/%d"), d, int(m), y, allocator = allocator)
+	return sign_date(lang, y, int(m), d, allocator)
 }
 
-// The line under the signature: the place and the date, or the date alone.
+// The line under the signature, in its language: the place and the date, or one of them.
 signature_caption :: proc(s: Signature, allocator := context.temp_allocator) -> string {
 	if !s.dated { return "" }
+	w := SIGN_WORDS[s.lang]
 	place, date := strings.trim_space(s.place), strings.trim_space(s.date)
 	switch {
-	case place != "" && date != "": return fmt.aprintf(i18n.tr("Done at %s, on %s"), place, date, allocator = allocator)
-	case place != "":              return fmt.aprintf(i18n.tr("Done at %s"), place, allocator = allocator)
-	case date != "":               return fmt.aprintf(i18n.tr("On %s"), date, allocator = allocator)
+	case place != "" && date != "": return fmt.aprintf(w.place_date, place, date, allocator = allocator)
+	case place != "":              return fmt.aprintf(w.place_only, place, allocator = allocator)
+	case date != "":               return fmt.aprintf(w.date_only, date, allocator = allocator)
 	}
 	return ""
 }
@@ -152,7 +199,7 @@ SIGNATURES_HEADER :: "feuille signatures 1"
 SIGNATURES_EXT :: "signatures"
 
 // A signature's fields, as the store and the exported file write them (no prefix; one line each).
-signature_fields :: proc(s: Signature, allocator := context.temp_allocator) -> [14]store.Entry {
+signature_fields :: proc(s: Signature, allocator := context.temp_allocator) -> [15]store.Entry {
 	context.allocator = allocator
 	f :: proc(v: f32) -> string { return fmt.aprintf("%.2f", v) }
 	b :: proc(v: bool) -> string { return v ? "1" : "0" }
@@ -167,6 +214,7 @@ signature_fields :: proc(s: Signature, allocator := context.temp_allocator) -> [
 		{"mention", b(s.mention)},
 		{"dated", b(s.dated)},
 		{"place", one_line(s.place)},
+		{"lang", SIGN_WORDS[s.lang].tag},
 		{"scale", f(s.scale)},
 		{"pen", fmt.aprint(s.pen)},
 		{"thickness", f(s.thickness)},
@@ -207,6 +255,10 @@ signature_read :: proc(fields: map[string]string, n: int, allocator := context.a
 	if v, has := get(fields, n, "pen"); has {
 		for k in Pen_Kind { if fmt.tprint(k) == v { s.pen = k } }
 	}
+	s.lang = sign_lang_default()
+	if v, has := get(fields, n, "lang"); has {
+		for w, k in SIGN_WORDS { if w.tag == v { s.lang = k } }
+	}
 	if v, has := get(fields, n, "ink"); has {
 		c, parsed := strconv.parse_int(v, 16)
 		if parsed { s.ink = {u8(c >> 16), u8(c >> 8), u8(c)} }
@@ -220,7 +272,7 @@ signature_read :: proc(fields: map[string]string, n: int, allocator := context.a
 	s.dated = flag(fields, n, "dated", s.dated)
 	s.strokes = make([dynamic]Stroke)
 	if v, has := get(fields, n, "strokes"); has { strokes_parse(v, &s.strokes) }
-	s.date = signature_today()
+	s.date = signature_today(s.lang)
 	return s, true
 }
 
@@ -237,7 +289,7 @@ signatures_read :: proc(fields: map[string]string, allocator := context.allocato
 
 // Every field of `list`, numbered: the store's entries.
 signatures_entries :: proc(list: []Signature, allocator := context.temp_allocator) -> [dynamic]store.Entry {
-	out := make([dynamic]store.Entry, 0, len(list) * 14 + 1, allocator)
+	out := make([dynamic]store.Entry, 0, len(list) * 15 + 1, allocator)
 	for s, n in list {
 		for e in signature_fields(s, allocator) { append(&out, store.Entry{fmt.aprintf("%d.%s", n, e.key, allocator = allocator), e.value}) }
 	}
@@ -275,7 +327,8 @@ signatures_load :: proc(st: ^store.Store, allocator := context.allocator) -> (li
 	if len(list) == 0 {
 		s := SIGNATURE_DEFAULT
 		s.strokes = make([dynamic]Stroke, allocator)
-		s.date = signature_today(allocator)
+		s.lang = sign_lang_default()
+		s.date = signature_today(s.lang, allocator)
 		append(&list, s)
 	}
 	if v, ok := fields["chosen"]; ok {
@@ -460,7 +513,7 @@ sign_compose :: proc(s: Signature, faces: [Script]pdf.Face, allocator := context
 	face := faces[s.script]
 	scale := clamp(s.scale, 0.5, 2)
 	caption := signature_caption(s)
-	mention := i18n.tr("Read and approved")
+	mention := SIGN_WORDS[s.lang].mention
 	name_pt := SIGN_TYPED_PT * scale * SCRIPTS[s.script].scale
 	stamps := make([dynamic]pdf.Stamp)
 	shapes := make([dynamic]pdf.Shape)

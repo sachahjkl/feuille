@@ -42,6 +42,12 @@ It is not a digital signature: nothing proves who signed. It is the picture of a
   few levels, and each level is one fill of the ink's colour at that level's alpha (multiplied, in the PDF). A
   stroke is its own fills, so where two strokes cross, two layers of ink darken it, as on paper. The pad draws the
   same levels: what the pad shows is what is placed.
+- The mention and the caption are in the signature's language, not the program's: a document is signed in its own
+  language. Seven languages, each with its usual turns, not a word-for-word translation ("Fait à Lyon, le …",
+  "Lyon, den …", "Opgemaakt te Lyon op …") and its way of writing a date; the words are data of the signature
+  (`SIGN_WORDS`), not texts of the interface's catalogue. A new signature takes the program's language when it is
+  one of them, else English; another one added takes the language of the one before. Today's date, untouched, is
+  written again when the language changes; a date the person typed stays.
 - The values of a signature, each optional: "Read and approved" above it (in the script font: it is written by hand
   in France), and a line under it with the place and the date ("Done at Paris, on 19/11/2026"). The date is today
   at each opening, and the field can change it. The place is kept.

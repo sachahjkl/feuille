@@ -90,6 +90,9 @@ signatures of such a file (one you already have is not added again): take them t
   Clear starts again. A change of nib or thickness redraws what is there.
 - Both: the ink's colour (black, blue, dark blue), the size, "Read and approved" above it, and the place and the
   date under it ("Done at Lyon, on 19/11/2026"). The date is today's; change it in its field.
+- The words are in the document's language, whatever Feuille's: French, English, German, Spanish, Italian,
+  Portuguese or Dutch, each with its own turns ("Lu et approuvé", "Fait à Lyon, le 21/11/2026"; "Gelesen und
+  genehmigt", "Lyon, den 21.11.2026") and its own way of writing the date. Each signature keeps its language.
 
 The picture at the bottom is the signature as it goes on the page. "Place on the page" closes the dialog; the
 signature follows the pointer over the pages, and a click puts it there, centred. Click on each page that asks for
