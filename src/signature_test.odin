@@ -114,8 +114,11 @@ a_drawn_signature_is_ink_between_its_mention_and_its_caption :: proc(t: ^testing
 	session.drag(s, at(pad, w, h, k, 0.3, 0.7), at(pad, w, h, k, 0.8, 0.5))
 	testing.expect_value(t, len(app.sign.sig.strokes), 2)
 	testing.expect_value(t, len(app.sign.pad), 2)
-	testing.expect(t, len(app.sign.pad[0].points) > 2, "the pad draws the stroke's ink")
+	testing.expect(t, len(app.sign.pad[0].points) > 2, "the pad draws the stroke under way at once")
 	session.wait_until(s, app, preview_ready, "the preview of the drawing")
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool {
+		return app.sign.pad_tex_px != {} && app.sign.pad_shown == 2 && app.sign.pad_tex_epoch == app.sign.pad_epoch
+	}, "the pad shows the engine's ink of both strokes")
 	session.click(s, "sign_place")
 	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return !ui.view_is_open(&app.views, SIGN_VIEW) }, "the dialog closes")
 
@@ -123,13 +126,18 @@ a_drawn_signature_is_ink_between_its_mention_and_its_caption :: proc(t: ^testing
 	session.click_at(s, on_page(s, app, 0, 0.5, 0.5))
 	next_snapshot(s, app, rev, "the drawing placed")
 	p := app.snapshot.pages[0]
-	testing.expect_value(t, len(p.shapes), 1)
+	// (each stroke's ink in levels: at least one Outline a stroke, every part of the signature in one group)
+	testing.expect(t, len(p.shapes) >= 2, "the two strokes' ink")
 	testing.expect_value(t, len(p.stamps), 2)
-	ink_box := p.shapes[0].box
-	testing.expect_value(t, p.shapes[0].shape.kind, pdf.Shape_Kind.Outline)
-	gaps := 0
-	for q in p.shapes[0].shape.points { if math.is_nan(q.x) { gaps += 1 } }
-	testing.expect_value(t, gaps, 1)
+	g := p.stamps[0].stamp.group
+	testing.expect(t, g != 0, "the signature is a group")
+	ink_box := [4]f32{max(f32), max(f32), min(f32), min(f32)}
+	for sh in p.shapes {
+		testing.expect_value(t, sh.shape.kind, pdf.Shape_Kind.Outline)
+		testing.expect_value(t, sh.shape.group, g)
+		ink_box = {min(ink_box[0], sh.box[0]), min(ink_box[1], sh.box[1]), max(ink_box[2], sh.box[2]), max(ink_box[3], sh.box[3])}
+	}
+	testing.expect_value(t, p.stamps[1].stamp.group, g)
 	testing.expectf(t, !math.is_nan(ink_box[0]) && ink_box[2] > ink_box[0] && ink_box[3] > ink_box[1], "the ink has a box (%v)", ink_box)
 	testing.expectf(t, p.stamps[0].box[3] <= ink_box[1] + 0.01, "the mention above the ink (%v, %v)", p.stamps[0].box, ink_box)
 	testing.expectf(t, p.stamps[1].box[1] >= ink_box[3] - 0.01, "the caption under it (%v, %v)", p.stamps[1].box, ink_box)
@@ -145,6 +153,49 @@ a_drawn_signature_is_ink_between_its_mention_and_its_caption :: proc(t: ^testing
 		}
 	}
 	testing.expectf(t, dark > 10, "the ink is drawn on the page (%d dark pixels)", dark)
+
+	// a drag on its ink moves the whole signature; Delete takes all of it, one undo brings it back
+	before := group_box(p, g)
+	from := on_page(s, app, 0, (p.stamps[0].box[0] + p.stamps[0].box[2]) / 2, (p.stamps[0].box[1] + p.stamps[0].box[3]) / 2)
+	rev = app.snapshot.revision
+	session.drag(s, from, from + {0, 0.1 * (b.rect.max.y - b.rect.min.y) * k})
+	next_snapshot(s, app, rev, "the signature moved")
+	after := group_box(app.snapshot.pages[0], g)
+	testing.expectf(t, abs(after[1] - before[1] - 0.1) < 0.02 && abs(after[3] - before[3] - 0.1) < 0.02, "all of it went down (%v to %v)", before, after)
+	testing.expect_value(t, app.chosen.group, g)
+	rev = app.snapshot.revision
+	session.key(s, .Delete)
+	next_snapshot(s, app, rev, "the signature removed")
+	testing.expect_value(t, len(app.snapshot.pages[0].stamps) + len(app.snapshot.pages[0].shapes), 0)
+	rev = app.snapshot.revision
+	session.key(s, .Z, {.Ctrl})
+	next_snapshot(s, app, rev, "the removal undone")
+	testing.expect_value(t, len(app.snapshot.pages[0].stamps), 2)
+}
+
+// A stylus on the pad: its pressure comes into the stroke's samples, rising as the pen presses harder.
+@(test)
+a_stylus_s_pressure_reaches_the_stroke :: proc(t: ^testing.T) {
+	s, app := start(t, write_pdf(t, "pen.pdf", {pages = {{size = {300, 400}}}}))
+	session.wait_until(s, app, pictures_ready, "the document is drawn")
+	session.key(s, .S)
+	session.wait_until(s, app, dialog_ready, "the dialog opens")
+	app.sign.sig.mode, app.sign.tab = .Drawn, 1
+	sign_changed(app)
+	session.frames(s, 2)
+	pad := session.get(s, "sign_pad")
+	k := app.main.state.scale
+	w, h := pad.rect.max.x - pad.rect.min.x, pad.rect.max.y - pad.rect.min.y
+	from := [2]f32{(pad.rect.min.x + 0.2 * w) * k, (pad.rect.min.y + 0.5 * h) * k}
+	to := [2]f32{(pad.rect.min.x + 0.8 * w) * k, (pad.rect.min.y + 0.4 * h) * k}
+	session.pen_drag(s, from, to, {0.2, 0.9})
+	testing.expect_value(t, len(app.sign.sig.strokes), 1)
+	if len(app.sign.sig.strokes) == 1 {
+		st := app.sign.sig.strokes[0]
+		testing.expect(t, len(st) > 2, "the pen's moves are samples")
+		first, last := st[0].pressure, st[len(st) - 1].pressure
+		testing.expectf(t, first > 0 && last > first, "the pressure is the pen's, rising (%v to %v)", first, last)
+	}
 }
 
 // The exported file's text read back gives the same signatures; another file is refused.
@@ -225,13 +276,21 @@ the_strokes_are_kept_as_text_and_read_back :: proc(t: ^testing.T) {
 	append(&a, ink.Sample{at = {10.5, 20}, time = 0}, ink.Sample{at = {30.25, 41}, time = 16})
 	b := make(Stroke, context.temp_allocator)
 	append(&b, ink.Sample{at = {100, 100}, time = 0})
-	append(&strokes, a, b)
+	c := make(Stroke, context.temp_allocator)
+	append(&c, ink.Sample{at = {5, 6}, time = 0, pressure = 0.5}, ink.Sample{at = {7, 8}, time = 9, pressure = 0.25, tilt = {30, -12.5}})
+	append(&strokes, a, b, c)
 	text := strokes_format(strokes[:])
 	back := make([dynamic]Stroke, context.temp_allocator)
 	strokes_parse(text, &back)
 	defer for st in back { delete(st) }
-	testing.expect_value(t, len(back), 2)
+	testing.expect_value(t, len(back), 3)
 	testing.expect_value(t, len(back[0]), 2)
+	if len(back) == 3 {
+		testing.expect_value(t, back[2][0].pressure, 0.5)
+		testing.expect_value(t, back[2][0].tilt, [2]f32{})
+		testing.expect_value(t, back[2][1].pressure, 0.25)
+		testing.expect_value(t, back[2][1].tilt, [2]f32{30, -12.5})
+	}
 	testing.expect_value(t, back[0][1].at, [2]f32{30.3, 41})
 	testing.expect_value(t, back[0][1].time, 16)
 	testing.expect_value(t, back[1][0].at, [2]f32{100, 100})

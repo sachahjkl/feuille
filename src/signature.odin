@@ -300,7 +300,9 @@ one_line :: proc(s: string) -> string {
 	return out
 }
 
-// The strokes as text: "x,y,t" samples (tenths of a unit, milliseconds) joined by ";", the strokes by "|".
+// The strokes as text: "x,y,t" samples (tenths of a unit, milliseconds), ",p" after them when a stylus measured a
+// pressure (thousandths), and ",tx,ty" after that when it leaned (tenths of a degree), joined by ";", the strokes by
+// "|".
 strokes_format :: proc(strokes: []Stroke, allocator := context.temp_allocator) -> string {
 	b := strings.builder_make(allocator)
 	for st, i in strokes {
@@ -308,6 +310,9 @@ strokes_format :: proc(strokes: []Stroke, allocator := context.temp_allocator) -
 		for p, k in st {
 			if k > 0 { strings.write_byte(&b, ';') }
 			fmt.sbprintf(&b, "%d,%d,%d", int(math.round(p.at.x * 10)), int(math.round(p.at.y * 10)), int(math.round(p.time)))
+			leaned := p.tilt != {}
+			if p.pressure > 0 || leaned { fmt.sbprintf(&b, ",%d", int(math.round(p.pressure * 1000))) }
+			if leaned { fmt.sbprintf(&b, ",%d,%d", int(math.round(p.tilt.x * 10)), int(math.round(p.tilt.y * 10))) }
 		}
 	}
 	return strings.to_string(b)
@@ -321,12 +326,25 @@ strokes_parse :: proc(text: string, out: ^[dynamic]Stroke) {
 		samples := part
 		for one in strings.split_iterator(&samples, ";") {
 			fields := strings.split(one, ",", context.temp_allocator)
-			if len(fields) != 3 { continue }
+			if len(fields) != 3 && len(fields) != 4 && len(fields) != 6 { continue }
 			x, ok1 := strconv.parse_int(fields[0])
 			y, ok2 := strconv.parse_int(fields[1])
 			t, ok3 := strconv.parse_int(fields[2])
 			if !ok1 || !ok2 || !ok3 { continue }
-			append(&st, ink.Sample{at = {f32(x) / 10, f32(y) / 10}, time = f64(t)})
+			pressure: f32
+			tilt: [2]f32
+			if len(fields) >= 4 {
+				p, okp := strconv.parse_int(fields[3])
+				if !okp { continue }
+				pressure = clamp(f32(p) / 1000, 0, 1)
+			}
+			if len(fields) == 6 {
+				tx, okx := strconv.parse_int(fields[4])
+				ty, oky := strconv.parse_int(fields[5])
+				if !okx || !oky { continue }
+				tilt = {clamp(f32(tx) / 10, -90, 90), clamp(f32(ty) / 10, -90, 90)}
+			}
+			append(&st, ink.Sample{at = {f32(x) / 10, f32(y) / 10}, time = f64(t), pressure = pressure, tilt = tilt})
 		}
 		if len(st) > 0 { append(out, st) } else { delete(st) }
 	}
@@ -371,22 +389,66 @@ sign_marks_clone :: proc(m: Sign_Marks, allocator := context.allocator) -> Sign_
 	return out
 }
 
-// The ink of the strokes as one Outline shape, in the pad's units (NaN between the contours), and its box.
-sign_ink :: proc(s: Signature, allocator := context.allocator) -> (points: [dynamic][2]f32, lo, hi: [2]f32) {
-	points = make([dynamic][2]f32, allocator)
-	lo, hi = {max(f32), max(f32)}, {min(f32), min(f32)}
-	pen := sign_pen(s)
-	for st in s.strokes {
-		o := ink.outline(st[:], pen, context.temp_allocator)
-		poly := ink.polygon(o, context.temp_allocator)
-		if len(poly) < 3 { continue }
-		if len(points) > 0 { append(&points, [2]f32{math.nan_f32(), math.nan_f32()}) }
-		for q in poly {
-			append(&points, q)
-			lo, hi = {min(lo.x, q.x), min(lo.y, q.y)}, {max(hi.x, q.x), max(hi.y, q.y)}
+// The levels a stroke's ink is drawn in (gt:ink's cumulative fills): the pad and the PDF draw the same ones.
+SIGN_LEVELS :: 6
+
+// A stroke's seed: from its first sample, so its ink is the same at every render, while it is being drawn too, and
+// whatever strokes come before it or are removed.
+stroke_seed :: proc(st: Stroke) -> u32 {
+	if len(st) == 0 { return 1 }
+	h := u32(i32(st[0].at.x * 10)) * 2654435761 ~ u32(i32(st[0].at.y * 10)) * 2246822519
+	return h | 1
+}
+
+// A stroke's ink as levels, in the pad's units: each level one fill of its alpha. The levels are `allocator`'s.
+stroke_levels :: proc(s: Signature, st: Stroke, allocator := context.allocator) -> []ink.Level {
+	laid := ink.lay(st[:], sign_pen(s), stroke_seed(st), context.temp_allocator)
+	return ink.levels(laid, SIGN_LEVELS, allocator)
+}
+
+// One level as an Outline's points: its contours, a NaN point between two; each point through `to`.
+level_points :: proc(l: ink.Level, k: f32, origin: [2]f32, allocator := context.allocator) -> [][2]f32 {
+	n := len(l.points) + max(len(l.contours) - 1, 0)
+	out := make([][2]f32, n, allocator)
+	i := 0
+	for c, ci in l.contours {
+		if ci > 0 {
+			out[i] = {math.nan_f32(), math.nan_f32()}
+			i += 1
+		}
+		for q in c {
+			out[i] = (q - origin) * k
+			i += 1
 		}
 	}
-	return
+	return out
+}
+
+// The ink of the strokes as shapes in points (`k` points a unit), its box's corner at 0, `y` down from the top: one
+// Outline a level of each stroke, so two strokes that cross lay two layers of ink. ok false: no ink at all.
+sign_ink_shapes :: proc(s: Signature, k, y: f32, allocator := context.allocator) -> (shapes: [dynamic]pdf.Shape, size: [2]f32, ok: bool) {
+	per := make([dynamic][]ink.Level, context.temp_allocator)
+	lo, hi := [2]f32{max(f32), max(f32)}, [2]f32{min(f32), min(f32)}
+	for st in s.strokes {
+		ls := stroke_levels(s, st, context.temp_allocator)
+		append(&per, ls)
+		for l in ls {
+			for q in l.points { lo, hi = {min(lo.x, q.x), min(lo.y, q.y)}, {max(hi.x, q.x), max(hi.y, q.y)} }
+		}
+	}
+	if lo.x > hi.x { return }
+	shapes = make([dynamic]pdf.Shape, allocator)
+	c := s.ink
+	for ls in per {
+		for l in ls {
+			if len(l.points) == 0 { continue }
+			pts := level_points(l, k, lo, allocator)
+			for &q in pts { q.y += y }
+			a := u8(clamp(math.round(l.alpha * 255), 1, 255))
+			append(&shapes, pdf.Shape{kind = .Outline, points = pts, fill = {c[0], c[1], c[2], a}})
+		}
+	}
+	return shapes, (hi - lo) * k, true
 }
 
 // The marks of `s` with the engine's fonts `faces` (the preview thread: pdf.stamp_size is the engine's). Empty when
@@ -411,11 +473,9 @@ sign_compose :: proc(s: Signature, faces: [Script]pdf.Face, allocator := context
 		m.size = pdf.stamp_size(st)
 		append(&stamps, st)
 	case .Drawn:
-		raw, lo, hi := sign_ink(s, context.temp_allocator)
-		if len(raw) == 0 { return }
 		k := SIGN_POINTS_PER_UNIT * scale
 		y: f32 = 0
-		w := (hi.x - lo.x) * k
+		w: f32 = 0
 		if s.mention {
 			st := pdf.Stamp{face = face, size = name_pt * SIGN_MENTION_K, color = color, text = strings.clone(mention)}
 			wh := pdf.stamp_size(st)
@@ -423,10 +483,17 @@ sign_compose :: proc(s: Signature, faces: [Script]pdf.Face, allocator := context
 			y += wh.y + SIGN_GAP_PT
 			w = max(w, wh.x)
 		}
-		points := make([][2]f32, len(raw))
-		for q, i in raw { points[i] = math.is_nan(q.x) ? q : (q - lo) * k + {0, y} }
-		append(&shapes, pdf.Shape{kind = .Outline, points = points, fill = {color[0], color[1], color[2], 255}})
-		y += (hi.y - lo.y) * k
+		inked, size, ok := sign_ink_shapes(s, k, y)
+		if !ok {
+			for st in stamps { delete(st.text) }
+			delete(stamps)
+			delete(shapes)
+			return
+		}
+		append(&shapes, ..inked[:])
+		delete(inked)
+		w = max(w, size.x)
+		y += size.y
 		if caption != "" {
 			st := pdf.Stamp{at = {0, y + SIGN_GAP_PT}, font = {family = .Sans}, size = max(SIGN_CAPTION_PT * scale, 7), color = color, text = strings.clone(caption)}
 			wh := pdf.stamp_size(st)

@@ -151,7 +151,8 @@ action_enabled :: proc(app: ^App, a: Action) -> bool {
 	switch a {
 	case .Undo:          return doc && s.can_undo
 	case .Redo:          return doc && s.can_redo
-	case .Remove_Page:   return doc && index >= 0 && len(s.pages) > 1
+	// (Delete takes the chosen mark first: a one-page document's mark goes too)
+	case .Remove_Page:   return doc && (app.chosen.kind != .None || (index >= 0 && len(s.pages) > 1))
 	case .Move_Up:       return doc && index > 0
 	case .Move_Down:     return doc && index >= 0 && index < len(s.pages) - 1
 	case .Remove_Mark:   return doc && app.chosen.kind != .None
@@ -212,7 +213,7 @@ action_run :: proc(app: ^App, a: Action) {
 	case .Rotate_Left:   worker_edit(w, edit_ask_make(w, .Rotate, id = id, turns = -1))
 	case .Remove_Page:
 		// (Delete with a mark chosen takes the mark, never its page)
-		if !mark_remove(app) { worker_edit(w, edit_ask_make(w, .Remove, id = id)) }
+		if !mark_remove(app) && len(app.snapshot.pages) > 1 { worker_edit(w, edit_ask_make(w, .Remove, id = id)) }
 	case .Insert_Blank:  worker_edit(w, edit_ask_make(w, .Blank, id = id))
 	case .Insert_File:
 		ui.file_dialog(&app.main.state, .Open, {owner = app.main.win, title = i18n.tr("Add the pages of a PDF"), filters = PDF_FILTERS[:], all_files = true, remember_id = "open"}, insert_chosen, app)

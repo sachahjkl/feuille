@@ -49,7 +49,15 @@ Sign_State :: struct {
 	tex_size:  [2]int,                     // {}: no texture
 	tab:       int,                        // the dialog's tab (Sign_Mode)
 	focus:     bool,                       // the next build gives the name's field the keyboard
-	pad:       [dynamic]draw.Path,         // each stroke's ink, a filled outline in the pad's units (made when it changes)
+	pad:       [dynamic]draw.Path,         // each stroke's outline in the pad's units: the pad draws a stroke the
+	                                       // engine's picture does not hold yet (the one under way) with it
+	pad_tex:   render.Texture,             // the engine's picture of the finished strokes' ink (pad_tex_px: {}: none)
+	pad_tex_px: [2]int,
+	pad_shown: int,                        // the strokes it holds, the first ones
+	pad_tex_epoch: u64,                    // the epoch it was made for
+	pad_epoch: u64,                        // moves with every change of the pad but a stroke added: the picture is stale
+	pad_px:    [2]int,                     // the pad's size in pixels, as the last build laid it out
+	pad_px_asked: [2]int,
 	drawing:   bool,                       // a stroke under way
 	stroke_ms: f64,                        // its start, ui clock
 	hover:     Sign_Hover,
@@ -68,7 +76,7 @@ sign_init :: proc(app: ^App) {
 	s.lib, s.chosen = signatures_load(&s.store)
 	s.pad = make([dynamic]draw.Path)
 	sign_take(app, s.chosen)
-	sign_thread_start(&s.thread, {state = &app.main.state, user = app, faces = on_sign_faces, preview = on_sign_preview})
+	sign_thread_start(&s.thread, {state = &app.main.state, user = app, faces = on_sign_faces, preview = on_sign_preview, linear = render.blend_space(&app.shared.r) == .Linear})
 	ui.view_register(&app.views, SIGN_VIEW, signature_view, {title = i18n.later("Signature"), icon = lucide.SIGNATURE, icon_font = ui.lucide_icons(), width_em = 40})
 }
 
@@ -78,6 +86,8 @@ sign_close :: proc(app: ^App) {
 	sign_thread_stop(&s.thread)
 	if s.tex_size != {} { render.destroy_texture(&app.shared.r, s.tex) }
 	s.tex_size = {}
+	if s.pad_tex_px != {} { render.destroy_texture(&app.shared.r, s.pad_tex) }
+	s.pad_tex_px = {}
 	if s.preview != nil { sign_preview_free(s.preview) }
 	s.preview = nil
 	sign_keep(app)
@@ -123,6 +133,16 @@ on_sign_preview :: proc(data: rawptr, _: u64) {
 		s.tex_size = p.px
 		render.update_texture_rgba(r, s.tex, 0, 0, p.px.x, p.px.y, p.rgba)
 	}
+	if p.pad_rgba != nil {
+		if s.pad_tex_px != p.pad_px && s.pad_tex_px != {} {
+			render.destroy_texture(r, s.pad_tex)
+			s.pad_tex_px = {}
+		}
+		if s.pad_tex_px == {} { s.pad_tex = render.create_texture_rgba(r, p.pad_px.x, p.pad_px.y) }
+		s.pad_tex_px = p.pad_px
+		render.update_texture_rgba(r, s.pad_tex, 0, 0, p.pad_px.x, p.pad_px.y, p.pad_rgba)
+		s.pad_shown, s.pad_tex_epoch = p.pad_strokes, p.epoch
+	}
 	host.host_settle(&app.main)
 }
 
@@ -143,9 +163,10 @@ sign_changed :: proc(app: ^App) {
 // Each build: the newest signature to the preview thread, and the dialog's answer.
 sign_follow :: proc(app: ^App) {
 	s := &app.sign
-	if s.faces_ok && s.asked != s.version {
-		s.asked = s.version
-		sign_thread_ask(&s.thread, s.version, s.sig, ui.scale() * 2)
+	// (the pad's picture asked again when the pad changed size: the dialog resized)
+	if s.faces_ok && (s.asked != s.version || s.pad_px != s.pad_px_asked) {
+		s.asked, s.pad_px_asked = s.version, s.pad_px
+		sign_thread_ask(&s.thread, s.version, s.sig, ui.scale() * 2, ui.view_is_open(&app.views, SIGN_VIEW) ? s.pad_px : {}, s.pad_epoch)
 	}
 	if code, ok := ui.view_ended(&app.views, SIGN_VIEW); ok {
 		sign_keep(app)
@@ -185,11 +206,16 @@ sign_ink_set :: proc(app: ^App, c: [3]u8) {
 	s := &app.sign
 	if s.sig.ink == c { return }
 	s.sig.ink = c
+	s.pad_epoch += 1
 	sign_changed(app)
 	sign_keep(app)
 	ch := app.chosen
 	if ch.kind == .None || app.snapshot == nil { return }
 	w := &app.worker
+	if ch.group != 0 {
+		worker_edit(w, group_ask_make(w, ch.id, ch.group, color = c))
+		return
+	}
 	for q in app.snapshot.pages {
 		if q.id != ch.id { continue }
 		if ch.kind == .Stamp && ch.index < len(q.stamps) {
@@ -533,6 +559,7 @@ drawn_part :: proc(app: ^App, em: f32) {
 			delete(pop(&s.sig.strokes))
 			last := pop(&s.pad)
 			draw.path_destroy(&last)
+			s.pad_epoch += 1
 			sign_changed(app)
 		}
 		ui.space(ui.ICON_GAP)
@@ -559,6 +586,7 @@ common_part :: proc(app: ^App, em: f32) {
 		for c, i in SIGN_INKS {
 			if swatch(fmt.tprintf("###sign_ink%d", i), {c[0], c[1], c[2], 255}, s.sig.ink == c, em, i18n.tr("Ink")) {
 				s.sig.ink = c
+				s.pad_epoch += 1
 				sign_changed(app)
 			}
 		}
@@ -632,10 +660,13 @@ preview_part :: proc(app: ^App, em: f32) {
 ////////////////////////////////
 // The pad
 
-// What the pad draws: paper, a line to sign on, the ink.
+// What the pad draws: paper, a line to sign on, the engine's picture of the finished strokes, and the strokes it does
+// not hold yet as their outlines (the one under way: drawn at once, its ink comes with the next picture).
 @(private = "file")
 Pad_Draw :: struct {
-	strokes: []draw.Path,
+	tex:     render.Texture,
+	has_tex: bool,
+	live:    []draw.Path,
 	ink:     draw.Color,
 	line:    draw.Color,
 	edge:    draw.Color,
@@ -657,9 +688,9 @@ pad_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
 	c, h := [2]f32{x0 + 6 * d.scale, y - 9 * d.scale}, 4 * d.scale
 	draw.line(dc, c - h, c + h, 1.5 * d.scale, d.line)
 	draw.line(dc, {c.x - h, c.y + h}, {c.x + h, c.y - h}, 1.5 * d.scale, d.line)
-	// (the outlines in the pad's units, scaled to the box: antialiased, the nib's width as the pen made it)
+	if d.has_tex { draw.image(dc, d.tex, r) }
 	draw.push_transform(dc, draw.affine_mul(draw.affine_translate(r.min), draw.affine_scale(k)))
-	for &p in d.strokes { draw.path_fill(dc, &p, d.ink) }
+	for &p in d.live { draw.path_fill(dc, &p, d.ink) }
 	draw.pop_transform(dc)
 }
 
@@ -667,9 +698,15 @@ pad_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
 pad_build :: proc(app: ^App, em: f32) {
 	s := &app.sign
 	d := ui.frame_new(Pad_Draw)
-	d.strokes = s.pad[:]
+	// (the picture holds the first pad_shown strokes of this epoch; the strokes after them are drawn live)
+	first := 0
+	if s.pad_tex_px != {} && s.pad_tex_epoch == s.pad_epoch && s.pad_shown <= len(s.pad) {
+		d.tex, d.has_tex, first = s.pad_tex, true, s.pad_shown
+	}
+	d.live = s.pad[first:]
 	c := s.sig.ink
-	d.ink = draw.srgb(f32(c[0]) / 255, f32(c[1]) / 255, f32(c[2]) / 255)
+	opacity := sign_pen(s.sig).ink.opacity
+	d.ink = draw.srgb(f32(c[0]) / 255, f32(c[1]) / 255, f32(c[2]) / 255, opacity > 0 ? opacity : 1)
 	d.line, d.edge, d.scale = draw.srgb(0.75, 0.77, 0.8), ui.color("border"), ui.scale()
 	ui.next({width = ui.fill(), height = ui.px(em * 12)})
 	b := ui.custom("###sign_pad", pad_draw, d, {.Clickable})
@@ -678,12 +715,17 @@ pad_build :: proc(app: ^App, em: f32) {
 	sig := ui.signal(b)
 	size := b.rect.max - b.rect.min
 	if size.x <= 0 || size.y <= 0 { return }
+	s.pad_px = {int(math.round(size.x * ui.scale())), int(math.round(size.y * ui.scale()))}
 	at := [2]f32{clamp(sig.mouse.x / size.x, 0, 1), clamp(sig.mouse.y / size.y, 0, 1)} * SIGN_PAD
 	now := ui.now_ms()
+	// (a stylus's pressure and lean where the system gives them; 0, a mouse: the ink follows the speed, upright)
+	pressure := ui.pointer_pressure()
+	device := ui.pointer_device()
+	tilt := device.kind == .Pen ? device.tilt : {}
 	if sig.pressed && !s.drawing {
 		s.drawing, s.stroke_ms = true, now
 		st := make(Stroke)
-		append(&st, ink.Sample{at = at})
+		append(&st, ink.Sample{at = at, pressure = pressure, tilt = tilt})
 		append(&s.sig.strokes, st)
 		append(&s.pad, draw.path_make())
 		pad_stroke(s, len(s.sig.strokes) - 1)
@@ -693,7 +735,7 @@ pad_build :: proc(app: ^App, em: f32) {
 	if sig.dragging {
 		last := st[len(st) - 1].at
 		if d := at - last; d.x * d.x + d.y * d.y >= SIGN_STEP * SIGN_STEP {
-			append(st, ink.Sample{at = at, time = now - s.stroke_ms})
+			append(st, ink.Sample{at = at, time = now - s.stroke_ms, pressure = pressure, tilt = tilt})
 			pad_stroke(s, len(s.sig.strokes) - 1)
 		}
 		host.host_settle(&app.main)
@@ -704,7 +746,7 @@ pad_build :: proc(app: ^App, em: f32) {
 	}
 }
 
-// The ink of stroke `i` of the pad, made again from its samples.
+// The outline of stroke `i` of the pad, made again from its samples: one contour, the pen's width.
 @(private = "file")
 pad_stroke :: proc(s: ^Sign_State, i: int) {
 	o := ink.outline(s.sig.strokes[i][:], sign_pen(s.sig), context.temp_allocator)
@@ -717,10 +759,12 @@ pad_stroke :: proc(s: ^Sign_State, i: int) {
 	draw.path_close(p)
 }
 
-// Every stroke's ink made again: a new pen.
+// Every stroke's outline made again, the picture stale until the next one: a new pen, a stroke removed, cleared.
 sign_pad_redo :: proc(s: ^Sign_State) {
+	context.allocator = runtime.heap_allocator()
 	for &p in s.pad { draw.path_destroy(&p) }
 	clear(&s.pad)
 	for _ in s.sig.strokes { append(&s.pad, draw.path_make()) }
 	for _, i in s.sig.strokes { pad_stroke(s, i) }
+	s.pad_epoch += 1
 }

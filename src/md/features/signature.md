@@ -22,6 +22,26 @@ It is not a digital signature: nothing proves who signed. It is the picture of a
     speed (fast is thin, slow is thick), its ends taper. The nibs are a ballpoint, a fountain pen (a broad nib: thin
     along its angle, thick across), a felt pen and a brush, with a thickness. The ink is one Outline shape of gt:pdf:
     filled contours, the width drawn as the pen made it, not a stroke of one width.
+- Each nib has its ink, as gt:ink's presets describe it (`Pen.ink`), with no setting of its own: the person
+  chooses a pen, not a list of effects.
+  - Ballpoint: an opaque line that a starved ball thins to faint, scratches on one edge and rarely breaks, more where
+    the hand is fast, on upstrokes and in a stroke's first millimetres; never in a pattern that repeats.
+  - Fountain pen: translucent ink, so crossings darken; ink pooled where the nib lands and lifts; darker where the
+    hand slows.
+  - Felt pen: translucent, crossings darker, the paper's grain in its edges and streaks along its path.
+  - Brush: the same, stronger, with pooling.
+  - A stylus's pressure, where the system gives it, widens and darkens the line; its lean lays the side of a felt's
+    or a brush's tip and turns a fountain pen's nib with the hand. Both are kept with the strokes' samples.
+- The pad shows the finished strokes as the engine renders them (the preview thread), and draws the stroke under
+  way itself as a plain outline: gt:draw's polygon fill, made for an interface's shapes, cannot draw a grained ink's
+  hundreds of pieces (its edges between them showed, and it keeps 4096 points a fill). The picture is stale after any
+  change but a new stroke (a pen, a colour, a stroke removed): the pad's epoch says which picture still holds.
+- A translucent ink is composed on sRGB values by the engine and in linear light by the interface: the picture's
+  alpha is chosen so the interface shows the engine's darkness, not the same alpha.
+- The ink is drawn as levels: gt:ink lays a stroke as pieces of ink of varying density; the pieces are grouped in a
+  few levels, and each level is one fill of the ink's colour at that level's alpha (multiplied, in the PDF). A
+  stroke is its own fills, so where two strokes cross, two layers of ink darken it, as on paper. The pad draws the
+  same levels: what the pad shows is what is placed.
 - The values of a signature, each optional: "Read and approved" above it (in the script font: it is written by hand
   in France), and a line under it with the place and the date ("Done at Paris, on 19/11/2026"). The date is today
   at each opening, and the field can change it. The place is kept.
@@ -67,6 +87,11 @@ the document never waits for a preview. It has two jobs:
   drawn ink is a filled path.
 - The drawn strokes as lines of one width (the Pen tool's): they look like a plotter, not a hand. A signature's
   character is the width that changes.
+- A light line where a stroke crosses its own ink (feuille 0.8): the pad's fill antialiased along edges inside the
+  ink. Fixed in gt:draw (only the edges between ink and paper are smoothed), not hidden here.
+- Ink effects as switches (grain on, pooling on): a list of effects to tune is a design tool, not a pen. The nib
+  carries them.
+- One random draw a render: the seed of each stroke is kept with it, so a signature looks the same every time.
 - Shaping the script fonts (ligatures, contextual forms): the fonts chosen join their letters without it.
 - Each part as a separate placement: the person would place three things for one signature.
 - A "Save" button and unsaved edits: one more state the person must think about, and a signature lost by a

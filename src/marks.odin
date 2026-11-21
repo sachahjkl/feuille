@@ -18,11 +18,30 @@ Tool :: enum u8 { None, Text, Rect, Ellipse, Line, Arrow, Pen, Highlight, Signat
 
 Mark_Kind :: enum u8 { None, Stamp, Shape }
 
-// A mark of a page: its page, its kind, its index among the page's stamps or shapes.
+// A mark of a page: its page, its kind, its index among the page's stamps or shapes, and its group (pdf.Stamp.group:
+// a signature's parts, which move, recolour and go together; 0: on its own).
 Mark_Ref :: struct {
 	id:    u64,
 	kind:  Mark_Kind,
 	index: int,
+	group: u32,
+}
+
+// The box of every mark of `group` on page `p` (shares).
+group_box :: proc(p: Snapshot_Page, group: u32) -> (b: [4]f32) {
+	b = {max(f32), max(f32), min(f32), min(f32)}
+	grow :: proc(b: ^[4]f32, o: [4]f32) { b^ = {min(b[0], o[0]), min(b[1], o[1]), max(b[2], o[2]), max(b[3], o[3])} }
+	for st in p.stamps { if st.stamp.group == group { grow(&b, st.box) } }
+	for sh in p.shapes { if sh.shape.group == group { grow(&b, sh.box) } }
+	return
+}
+
+// The ask that moves (`by`, shares of the page shown), removes, or recolours the marks of a group.
+group_ask_make :: proc(w: ^Worker, id: u64, group: u32, by: [2]f32 = {}, remove := false, color: [3]u8 = {}) -> Edit_Ask {
+	a := edit_ask_make(w, .Group, id = id)
+	a.group, a.at, a.moved, a.remove = group, by, by != {}, remove
+	a.stamp.color = color
+	return a
 }
 
 // A press on a page with a tool on, until its release: where it started and where it is (shares of the page shown),
@@ -74,8 +93,8 @@ mark_at :: proc(p: Snapshot_Page, at: [2]f32, size: [2]f32) -> Mark_Ref {
 	inside :: proc(b: [4]f32, at, slop: [2]f32) -> bool {
 		return at.x >= b[0] - slop.x && at.x <= b[2] + slop.x && at.y >= b[1] - slop.y && at.y <= b[3] + slop.y
 	}
-	#reverse for st, k in p.stamps { if inside(st.box, at, {}) { return {p.id, .Stamp, k} } }
-	#reverse for sh, k in p.shapes { if inside(sh.box, at, slop) { return {p.id, .Shape, k} } }
+	#reverse for st, k in p.stamps { if inside(st.box, at, {}) { return {p.id, .Stamp, k, st.stamp.group} } }
+	#reverse for sh, k in p.shapes { if inside(sh.box, at, slop) { return {p.id, .Shape, k, sh.shape.group} } }
 	return {}
 }
 
@@ -129,6 +148,11 @@ gesture_end :: proc(app: ^App, p: Snapshot_Page) {
 	defer { g.active = false; clear(&g.points) }
 	w := &app.worker
 	delta := g.now - g.start
+	// (a signature's part taken: the whole signature moves)
+	if g.on.group != 0 && g.moved {
+		worker_edit(w, group_ask_make(w, p.id, g.on.group, by = delta))
+		return
+	}
 	switch g.on.kind {
 	case .Stamp:
 		if g.on.index >= len(p.stamps) { return }
@@ -169,6 +193,11 @@ mark_remove :: proc(app: ^App) -> bool {
 	c := app.chosen
 	if c.kind == .None || app.text.open { return false }
 	w := &app.worker
+	if c.group != 0 {
+		worker_edit(w, group_ask_make(w, c.id, c.group, remove = true))
+		app.chosen = {}
+		return true
+	}
 	switch c.kind {
 	case .Stamp: worker_edit(w, stamp_ask_make(w, c.id, c.index, {}, ""))
 	case .Shape: worker_edit(w, shape_ask_make(w, c.id, c.index, {}, remove = true))
@@ -354,14 +383,31 @@ marks_overlay :: proc(app: ^App, p: Snapshot_Page) -> ^Marks_Overlay {
 	o := ui.frame_new(Marks_Overlay)
 	o.accent = ui.color("accent")
 	if app.tool != .None {
-		o.boxes = make([][4]f32, len(p.stamps) + len(p.shapes), context.temp_allocator)
-		for st, k in p.stamps { o.boxes[k] = st.box }
-		for sh, k in p.shapes { o.boxes[len(p.stamps) + k] = sh.box }
+		// (a group is one outline: a signature's levels of ink and its lines are one mark)
+		boxes := make([dynamic][4]f32, 0, len(p.stamps) + len(p.shapes), context.temp_allocator)
+		at := make(map[u32]int, 8, context.temp_allocator)
+		add :: proc(boxes: ^[dynamic][4]f32, at: ^map[u32]int, b: [4]f32, g: u32) {
+			if g == 0 { append(boxes, b); return }
+			if k, seen := at[g]; seen {
+				o := &boxes[k]
+				o^ = {min(o[0], b[0]), min(o[1], b[1]), max(o[2], b[2]), max(o[3], b[3])}
+				return
+			}
+			at[g] = len(boxes)
+			append(boxes, b)
+		}
+		for st in p.stamps { add(&boxes, &at, st.box, st.stamp.group) }
+		for sh in p.shapes { add(&boxes, &at, sh.box, sh.shape.group) }
+		o.boxes = boxes[:]
 	}
 	c := app.chosen
 	if c.id == p.id {
-		if c.kind == .Stamp && c.index < len(p.stamps) { o.chosen, o.has_chosen = p.stamps[c.index].box, true }
-		if c.kind == .Shape && c.index < len(p.shapes) { o.chosen, o.has_chosen = p.shapes[c.index].box, true }
+		switch {
+		case c.group != 0:                                o.chosen, o.has_chosen = group_box(p, c.group), true
+		case c.kind == .Stamp && c.index < len(p.stamps): o.chosen, o.has_chosen = p.stamps[c.index].box, true
+		case c.kind == .Shape && c.index < len(p.shapes): o.chosen, o.has_chosen = p.shapes[c.index].box, true
+		}
+		if o.has_chosen && o.chosen[0] > o.chosen[2] { o.has_chosen = false }   // (the group is gone)
 	}
 	// (the signature follows the pointer: its picture where a click puts it, margin included)
 	if h := app.sign.hover; app.tool == .Signature && h.id == p.id && h.frame + 1 >= app.frame && !app.gesture.active {

@@ -22,7 +22,9 @@ Edit_Kind :: enum u8 {
 	Shape,     // shape `index` of page `id` (-1: a new one) set to `shape`'s style; `points` (shares of the page shown):
 	           // its new place (nil: it stays); `remove`: it goes
 	Sign,      // the signature's `marks` (points, upright, their box's corner at 0, 0) on page `id`, that corner at `at`
-	           // (shares of the page shown): one edit for all its parts
+	           // (shares of the page shown): one edit for all its parts, one group (pdf.Stamp.group)
+	Group,     // the marks of group `group` on page `id`: moved by `at` (shares of the page shown) when `moved`, removed
+	           // when `remove`, else their colour set to `stamp.color` (each shape's alpha kept)
 	Undo,
 	Redo,
 	Save,      // a copy of the document at `path`; it becomes the document's file
@@ -44,6 +46,7 @@ Edit_Ask :: struct {
 	shape:  pdf.Shape,   // its style and kind (its points are `points`)
 	points: [][2]f32,    // owned by the ask
 	marks:  Sign_Marks,  // owned by the ask
+	group:  u32,
 	text:   string,      // owned by the ask
 	path:   string,      // owned by the ask
 	ids:    []u64,       // owned by the ask
@@ -295,6 +298,8 @@ edit_now :: proc(w: ^Worker, a: ^Edit_Ask) -> (changed: bool) {
 		return shape(w, a)
 	case .Sign:
 		return sign(w, a)
+	case .Group:
+		return group(w, a)
 	case .Undo:
 		return step(w, true)
 	case .Redo:
@@ -432,7 +437,7 @@ stamp :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 			old := list[a.index]
 			s.at, s.turns = old.at, old.turns
 			// (a signature's font and effects are its own: the text tool's style and a move never change them)
-			s.face, s.tilt, s.weight, s.flourish, s.caption = old.face, old.tilt, old.weight, old.flourish, old.caption
+			s.face, s.tilt, s.weight, s.flourish, s.caption, s.group = old.face, old.tilt, old.weight, old.flourish, old.caption, old.group
 			// (moved: upright where it lands, so its corner is the point given)
 			if a.moved {
 				s.at = turn_back(a.at, shown, size, p.turns)
@@ -457,22 +462,76 @@ sign :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	if shown.x <= 0 || shown.y <= 0 { return false }
 	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
 	upright := (4 - (((p.turns % 4) + 4) % 4)) % 4
+	// (its parts one mark: a group no mark of the page has)
+	g: u32 = 1
+	for s in p.stamps { g = max(g, s.group + 1) }
+	for s in p.shapes { g = max(g, s.group + 1) }
 	stamps := make([dynamic]pdf.Stamp, context.temp_allocator)
 	append(&stamps, ..p.stamps)
 	for s in a.marks.stamps {
 		t := s
-		t.at, t.turns = turn_back(a.at + s.at / shown, shown, size, p.turns), upright
+		t.at, t.turns, t.group = turn_back(a.at + s.at / shown, shown, size, p.turns), upright, g
 		append(&stamps, t)
 	}
 	shapes := make([dynamic]pdf.Shape, context.temp_allocator)
 	append(&shapes, ..p.shapes)
 	for s in a.marks.shapes {
 		t := s
+		t.group = g
 		t.points = make([][2]f32, len(s.points), context.temp_allocator)
 		// (a NaN between two contours stays one)
 		for q, k in s.points { t.points[k] = turn_back(a.at + q / shown, shown, size, p.turns) }
 		append(&shapes, t)
 	}
+	return do_op(w, Op_Marks{a.id, stamps_clone(stamps[:], w.allocator), shapes_clone(shapes[:], w.allocator)})
+}
+
+// The marks of a group after the ask: moved together, removed together, or recoloured together.
+@(private = "file")
+group :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
+	i := index_of(w, a.id)
+	if i < 0 || a.group == 0 { return false }
+	p := w.pages[i].page
+	shown := pdf.shown_size(p)
+	if shown.x <= 0 || shown.y <= 0 { return false }
+	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	// (a point of the page as its file shows it, moved on the page shown, back)
+	move :: proc(q: [2]f32, p: pdf.Page, shown, size, by: [2]f32) -> [2]f32 {
+		return turn_back(turn_forward(q, p, shown) / shown + by, shown, size, p.turns)
+	}
+	found := false
+	stamps := make([dynamic]pdf.Stamp, context.temp_allocator)
+	for s in p.stamps {
+		if s.group != a.group {
+			append(&stamps, s)
+			continue
+		}
+		found = true
+		if a.remove { continue }
+		t := s
+		if a.moved { t.at = move(s.at, p, shown, size, a.at) } else { t.color = a.stamp.color }
+		append(&stamps, t)
+	}
+	shapes := make([dynamic]pdf.Shape, context.temp_allocator)
+	for s in p.shapes {
+		if s.group != a.group {
+			append(&shapes, s)
+			continue
+		}
+		found = true
+		if a.remove { continue }
+		t := s
+		if a.moved {
+			t.points = make([][2]f32, len(s.points), context.temp_allocator)
+			for q, k in s.points { t.points[k] = move(q, p, shown, size, a.at) }   // (a NaN stays one)
+		} else {
+			c := a.stamp.color
+			if t.fill[3] > 0 { t.fill.rgb = c }
+			if t.stroke[3] > 0 { t.stroke.rgb = c }
+		}
+		append(&shapes, t)
+	}
+	if !found { return false }
 	return do_op(w, Op_Marks{a.id, stamps_clone(stamps[:], w.allocator), shapes_clone(shapes[:], w.allocator)})
 }
 
@@ -511,7 +570,7 @@ shape :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 			ordered_remove(&out, a.index)
 		} else {
 			s := a.shape
-			s.kind = old.kind
+			s.kind, s.group = old.kind, old.group
 			s.points = old.points
 			if points != nil {
 				delete(old.points, w.allocator)
