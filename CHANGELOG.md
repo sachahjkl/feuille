@@ -3,6 +3,21 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.9.0] - 2026-11-21 10:10
+
+### Added
+- **A signature's words in the document's language.** "Read and approved" and the line of the place and the date are written in the language chosen for the signature, whatever Feuille's: French, English, German, Spanish, Italian, Portuguese or Dutch, each with its usual turn ("Fait à Lyon, le 21/11/2026", "Lyon, den 21.11.2026", "Done at Lyon, on 21 November 2026") and its way of writing the date. Each signature keeps its language.
+- **How much of an update is downloaded**: the Updates settings page says the size received and the whole, with a bar.
+- **The update button becomes its download bar**: after Install, the button turns into a bar that fills as the update downloads, then into Restart, in one smooth change.
+
+### Changed
+- **Ink that lands like ink.** A fountain pen's pools are drops, each its own shape and drawn out along the stroke, not circles; a tight loop's top is the flat edge of the nib, as a broad pen writes it; and every pen's curves stay smooth in tight turns, without the corners they showed.
+- **A drawn signature looks written in ink.** Each nib lays its own ink: a ballpoint that a dry ball now and then pales, scratches or breaks where the hand runs fast; a fountain pen's translucent ink pooled where the nib lands and lifts; a felt pen's grain and streaks; a brush's. The ink darkens where the hand slows and where two strokes cross, a stylus's pressure widens and darkens the line, and its lean lays the side of a felt's or a brush's tip and turns a fountain pen's nib with the hand. The pad shows the ink as it will be placed, without the light lines it drew where a stroke crossed itself or between its pieces.
+
+### Fixed
+- **A placed signature is one mark.** A drag on its ink, its mention or its date moves all of it, and Delete removes all of it. Delete also removes the chosen mark on a document of one page, where it did nothing.
+- **`nix run github:sachahjkl/feuille` works.** The flake fetched from GitHub had no gui_toolkit (a GitHub tarball holds no submodule), and the build stopped at once; it now takes the toolkit from an input of its own.
+
 ## [0.8.0] - 2026-11-19 16:24
 
 ### Added
@@ -76,6 +91,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.9.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.9.0
 [0.8.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.8.0
 [0.7.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.7.0
 [0.6.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.6.0
