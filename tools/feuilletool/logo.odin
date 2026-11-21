@@ -24,7 +24,7 @@ LOGO_MARGIN    :: 10.0
 
 // The flight: the leaf narrowed across and turned; logo_draw then fits it to the square.
 FLIGHT_NARROW :: 0.92
-FLIGHT_TURN   :: -20.0
+FLIGHT_TURN   :: -20.0 / 360   // turns
 
 // The colours: the golden tip, the orange middle, the red base, the crease's shade, the veins, the stem.
 LEAF_TIP    :: 0xFFC53D

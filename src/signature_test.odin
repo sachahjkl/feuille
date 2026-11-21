@@ -13,6 +13,7 @@ import "core:testing"
 import ink "gt:ink"
 import pdf "gt:pdf"
 import "gt:testkit"
+import "gt:turn"
 import session "gt:testkit/session"
 import "gt:ui"
 
@@ -311,9 +312,11 @@ the_strokes_are_kept_as_text_and_read_back :: proc(t: ^testing.T) {
 	b := make(Stroke, context.temp_allocator)
 	append(&b, ink.Sample{at = {100, 100}, time = 0})
 	c := make(Stroke, context.temp_allocator)
-	append(&c, ink.Sample{at = {5, 6}, time = 0, pressure = 0.5}, ink.Sample{at = {7, 8}, time = 9, pressure = 0.25, tilt = {30, -12.5}})
+	append(&c, ink.Sample{at = {5, 6}, time = 0, pressure = 0.5}, ink.Sample{at = {7, 8}, time = 9, pressure = 0.25, tilt = {turn.from_degrees(f32(30)), turn.from_degrees(f32(-12.5))}})
 	append(&strokes, a, b, c)
 	text := strokes_format(strokes[:])
+	// (the file keeps the tilt in tenths of a degree: files written before the tilt was in turns still read)
+	testing.expect(t, strings.has_suffix(text, ",250,300,-125"), text)
 	back := make([dynamic]Stroke, context.temp_allocator)
 	strokes_parse(text, &back)
 	defer for st in back { delete(st) }
@@ -323,7 +326,7 @@ the_strokes_are_kept_as_text_and_read_back :: proc(t: ^testing.T) {
 		testing.expect_value(t, back[2][0].pressure, 0.5)
 		testing.expect_value(t, back[2][0].tilt, [2]f32{})
 		testing.expect_value(t, back[2][1].pressure, 0.25)
-		testing.expect_value(t, back[2][1].tilt, [2]f32{30, -12.5})
+		testing.expect_value(t, back[2][1].tilt, [2]f32{turn.from_degrees(f32(30)), turn.from_degrees(f32(-12.5))})
 	}
 	testing.expect_value(t, back[0][1].at, [2]f32{30.3, 41})
 	testing.expect_value(t, back[0][1].time, 16)

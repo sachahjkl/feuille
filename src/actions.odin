@@ -209,8 +209,8 @@ action_run :: proc(app: ^App, a: Action) {
 		ui.file_dialog(&app.main.state, .Save, {owner = app.main.win, title = i18n.tr("Save this page as a PDF"), filters = PDF_FILTERS[:], start_dir = filepath.dir(app.snapshot.path), suggested_name = suggested_name(app, fmt.tprintf(i18n.tr("page %d"), selected_index(app) + 1)), default_ext = "pdf", overwrite_prompt = true}, extract_chosen, app)
 	case .Undo:          worker_edit(w, edit_ask_make(w, .Undo))
 	case .Redo:          worker_edit(w, edit_ask_make(w, .Redo))
-	case .Rotate_Right:  worker_edit(w, edit_ask_make(w, .Rotate, id = id, turns = 1))
-	case .Rotate_Left:   worker_edit(w, edit_ask_make(w, .Rotate, id = id, turns = -1))
+	case .Rotate_Right:  worker_edit(w, edit_ask_make(w, .Rotate, id = id, quarters = 1))
+	case .Rotate_Left:   worker_edit(w, edit_ask_make(w, .Rotate, id = id, quarters = -1))
 	case .Remove_Page:
 		// (Delete with a mark chosen takes the mark, never its page)
 		if !mark_remove(app) && len(app.snapshot.pages) > 1 { worker_edit(w, edit_ask_make(w, .Remove, id = id)) }

@@ -226,8 +226,8 @@ worker_edit :: proc(w: ^Worker, a: Edit_Ask) {
 }
 
 // An edit ask with its strings and ids copied for the worker.
-edit_ask_make :: proc(w: ^Worker, kind: Edit_Kind, id: u64 = 0, turns := 0, to := 0, text := "", path := "", ids: []u64 = nil) -> Edit_Ask {
-	a := Edit_Ask{kind = kind, id = id, turns = turns, to = to}
+edit_ask_make :: proc(w: ^Worker, kind: Edit_Kind, id: u64 = 0, quarters := 0, to := 0, text := "", path := "", ids: []u64 = nil) -> Edit_Ask {
+	a := Edit_Ask{kind = kind, id = id, quarters = quarters, to = to}
 	a.text = strings.clone(text, w.allocator)
 	a.path = strings.clone(path, w.allocator)
 	if ids != nil {
@@ -354,7 +354,7 @@ open_error :: proc(e: pdf.Error) -> Open_Error {
 
 // A point of the page as its file shows it, in points, on the page shown (turn_back's inverse).
 turn_forward :: proc(a: [2]f32, p: pdf.Page, shown: [2]f32) -> [2]f32 {
-	k := ((p.turns % 4) + 4) % 4
+	k := ((p.quarters % 4) + 4) % 4
 	size := k % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
 	switch k {
 	case 1: return {size.y - a.y, a.x}
@@ -367,13 +367,13 @@ turn_forward :: proc(a: [2]f32, p: pdf.Page, shown: [2]f32) -> [2]f32 {
 // A stamp's box on the page shown, as shares: its corner turned with the page, its sides with the stamp and the page.
 @(private = "file")
 stamp_box :: proc(p: pdf.Page, s: pdf.Stamp, shown: [2]f32) -> [4]f32 {
-	k := ((p.turns % 4) + 4) % 4
+	k := ((p.quarters % 4) + 4) % 4
 	corner := turn_forward(s.at, p, shown)
 	wh := pdf.stamp_size(s)
 	lo, hi := corner, corner
 	for c in ([4][2]f32{{0, 0}, {wh.x, 0}, {0, wh.y}, wh}) {
 		q: [2]f32
-		switch (s.turns + k) % 4 {
+		switch (s.quarters + k) % 4 {
 		case 1: q = {-c.y, c.x}
 		case 2: q = {-c.x, -c.y}
 		case 3: q = {c.y, -c.x}
@@ -393,7 +393,7 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 	s.pages = make([]Snapshot_Page, len(w.pages))
 	for e, i in w.pages {
 		shown := pdf.shown_size(e.page)
-		sp := Snapshot_Page{id = e.id, size = shown, rotation = e.page.turns, version = w.edits.versions[e.id]}
+		sp := Snapshot_Page{id = e.id, size = shown, rotation = e.page.quarters, version = w.edits.versions[e.id]}
 		if len(e.page.stamps) > 0 {
 			sp.stamps = make([]Snapshot_Stamp, len(e.page.stamps))
 			for st, k in e.page.stamps {

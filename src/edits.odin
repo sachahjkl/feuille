@@ -12,7 +12,7 @@ import pdf "gt:pdf"
 
 // What the interface asks.
 Edit_Kind :: enum u8 {
-	Rotate,    // `id` by `turns` quarter turns clockwise (1 or -1)
+	Rotate,    // `id` by `quarters` quarter turns clockwise (1 or -1)
 	Remove,    // the page `id`
 	Blank,     // a blank page after `id` (0: at the start), the size of its neighbour
 	Import,    // the pages of the PDF at `path`, after `id` (0: at the start)
@@ -35,7 +35,7 @@ Edit_Kind :: enum u8 {
 Edit_Ask :: struct {
 	kind:   Edit_Kind,
 	id:     u64,
-	turns:  int,
+	quarters: int,
 	to:     int,
 	index:  int,
 	at:     [2]f32,
@@ -118,7 +118,7 @@ Op :: union {
 	Op_Batch,
 }
 
-Op_Turn   :: struct { id: u64, turns: int }               // to these turns
+Op_Turn   :: struct { id: u64, quarters: int }            // to these quarter turns
 Op_Remove :: struct { id: u64 }
 Op_Insert :: struct { entry: Doc_Page, at: int }          // (its marks owned)
 Op_Move   :: struct { id: u64, to: int }
@@ -190,8 +190,8 @@ apply :: proc(w: ^Worker, op: ^Op) -> (inverse: Op, ok: bool) {
 		i := index_of(w, o.id)
 		if i < 0 { return }
 		p := &w.pages[i].page
-		old := p.turns
-		p.turns = ((o.turns % 4) + 4) % 4
+		old := p.quarters
+		p.quarters = ((o.quarters % 4) + 4) % 4
 		touch(w, o.id)
 		return Op_Turn{o.id, old}, true
 	case Op_Remove:
@@ -283,7 +283,7 @@ edit_now :: proc(w: ^Worker, a: ^Edit_Ask) -> (changed: bool) {
 	case .Rotate:
 		i := index_of(w, a.id)
 		if i < 0 { return false }
-		return do_op(w, Op_Turn{a.id, w.pages[i].page.turns + a.turns})
+		return do_op(w, Op_Turn{a.id, w.pages[i].page.quarters + a.quarters})
 	case .Remove:
 		return do_op(w, Op_Remove{a.id})
 	case .Blank:
@@ -400,10 +400,10 @@ import_file :: proc(w: ^Worker, path: string, after: u64) -> bool {
 	return true
 }
 
-// The point `at` (shares of a page shown with `turns`, `shown` its size) in the page as its file shows it (`size`).
-turn_back :: proc(at: [2]f32, shown, size: [2]f32, turns: int) -> [2]f32 {
+// The point `at` (shares of a page shown with `quarters`, `shown` its size) in the page as its file shows it (`size`).
+turn_back :: proc(at: [2]f32, shown, size: [2]f32, quarters: int) -> [2]f32 {
 	p := at * shown
-	switch ((turns % 4) + 4) % 4 {
+	switch ((quarters % 4) + 4) % 4 {
 	case 1: return {p.y, size.y - p.x}
 	case 2: return {size.x - p.x, size.y - p.y}
 	case 3: return {size.x - p.y, p.x}
@@ -418,7 +418,7 @@ stamp :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	if i < 0 { return false }
 	p := w.pages[i].page
 	shown := pdf.shown_size(p)
-	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	size := ((p.quarters % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
 	list := make([dynamic]pdf.Stamp, w.allocator)
 	for s in p.stamps { append(&list, s) }
 	defer delete(list)
@@ -427,21 +427,21 @@ stamp :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	switch {
 	case a.index < 0:
 		if a.text == "" { return false }
-		s.at = turn_back(a.at, shown, size, p.turns)
-		s.turns = (4 - (((p.turns % 4) + 4) % 4)) % 4
+		s.at = turn_back(a.at, shown, size, p.quarters)
+		s.quarters = (4 - (((p.quarters % 4) + 4) % 4)) % 4
 		append(&list, s)
 	case a.index < len(list):
 		if a.text == "" {
 			ordered_remove(&list, a.index)
 		} else {
 			old := list[a.index]
-			s.at, s.turns = old.at, old.turns
+			s.at, s.quarters = old.at, old.quarters
 			// (a signature's font and effects are its own: the text tool's style and a move never change them)
 			s.face, s.tilt, s.weight, s.flourish, s.caption, s.group = old.face, old.tilt, old.weight, old.flourish, old.caption, old.group
 			// (moved: upright where it lands, so its corner is the point given)
 			if a.moved {
-				s.at = turn_back(a.at, shown, size, p.turns)
-				s.turns = (4 - (((p.turns % 4) + 4) % 4)) % 4
+				s.at = turn_back(a.at, shown, size, p.quarters)
+				s.quarters = (4 - (((p.quarters % 4) + 4) % 4)) % 4
 			}
 			list[a.index] = s
 		}
@@ -460,8 +460,8 @@ sign :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	p := w.pages[i].page
 	shown := pdf.shown_size(p)
 	if shown.x <= 0 || shown.y <= 0 { return false }
-	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
-	upright := (4 - (((p.turns % 4) + 4) % 4)) % 4
+	size := ((p.quarters % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	upright := (4 - (((p.quarters % 4) + 4) % 4)) % 4
 	// (its parts one mark: a group no mark of the page has)
 	g: u32 = 1
 	for s in p.stamps { g = max(g, s.group + 1) }
@@ -470,7 +470,7 @@ sign :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	append(&stamps, ..p.stamps)
 	for s in a.marks.stamps {
 		t := s
-		t.at, t.turns, t.group = turn_back(a.at + s.at / shown, shown, size, p.turns), upright, g
+		t.at, t.quarters, t.group = turn_back(a.at + s.at / shown, shown, size, p.quarters), upright, g
 		append(&stamps, t)
 	}
 	shapes := make([dynamic]pdf.Shape, context.temp_allocator)
@@ -480,7 +480,7 @@ sign :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 		t.group = g
 		t.points = make([][2]f32, len(s.points), context.temp_allocator)
 		// (a NaN between two contours stays one)
-		for q, k in s.points { t.points[k] = turn_back(a.at + q / shown, shown, size, p.turns) }
+		for q, k in s.points { t.points[k] = turn_back(a.at + q / shown, shown, size, p.quarters) }
 		append(&shapes, t)
 	}
 	return do_op(w, Op_Marks{a.id, stamps_clone(stamps[:], w.allocator), shapes_clone(shapes[:], w.allocator)})
@@ -494,10 +494,10 @@ group :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	p := w.pages[i].page
 	shown := pdf.shown_size(p)
 	if shown.x <= 0 || shown.y <= 0 { return false }
-	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	size := ((p.quarters % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
 	// (a point of the page as its file shows it, moved on the page shown, back)
 	move :: proc(q: [2]f32, p: pdf.Page, shown, size, by: [2]f32) -> [2]f32 {
-		return turn_back(turn_forward(q, p, shown) / shown + by, shown, size, p.turns)
+		return turn_back(turn_forward(q, p, shown) / shown + by, shown, size, p.quarters)
 	}
 	found := false
 	stamps := make([dynamic]pdf.Stamp, context.temp_allocator)
@@ -542,13 +542,13 @@ shape :: proc(w: ^Worker, a: ^Edit_Ask) -> bool {
 	if i < 0 { return false }
 	p := w.pages[i].page
 	shown := pdf.shown_size(p)
-	size := ((p.turns % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
+	size := ((p.quarters % 4) + 4) % 4 % 2 == 1 ? [2]f32{shown.y, shown.x} : shown
 	list := shapes_clone(p.shapes, w.allocator)
 	// (the new place, from the shares of the page shown to the page as its file shows it)
 	points: [][2]f32
 	if a.points != nil {
 		points = make([][2]f32, len(a.points), w.allocator)
-		for q, k in a.points { points[k] = turn_back(q, shown, size, p.turns) }
+		for q, k in a.points { points[k] = turn_back(q, shown, size, p.quarters) }
 	}
 	out := make([dynamic]pdf.Shape, w.allocator)
 	append(&out, ..list)

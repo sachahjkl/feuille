@@ -15,6 +15,7 @@ import pdf "gt:pdf"
 import "gt:platform"
 import store "gt:store"
 import "gt:timefmt"
+import "gt:turn"
 
 // The script fonts a typed signature takes (assets/fonts, their licences beside them). `scale`: the size of a name
 // in it against SIGN_TYPED_PT, so the five look alike in size (their x-heights differ by half).
@@ -365,7 +366,8 @@ strokes_format :: proc(strokes: []Stroke, allocator := context.temp_allocator) -
 			fmt.sbprintf(&b, "%d,%d,%d", int(math.round(p.at.x * 10)), int(math.round(p.at.y * 10)), int(math.round(p.time)))
 			leaned := p.tilt != {}
 			if p.pressure > 0 || leaned { fmt.sbprintf(&b, ",%d", int(math.round(p.pressure * 1000))) }
-			if leaned { fmt.sbprintf(&b, ",%d,%d", int(math.round(p.tilt.x * 10)), int(math.round(p.tilt.y * 10))) }
+			// (the file keeps tenths of a degree, as before: a sample's tilt is turns only in memory)
+			if leaned { fmt.sbprintf(&b, ",%d,%d", int(math.round(turn.to_degrees(p.tilt.x) * 10)), int(math.round(turn.to_degrees(p.tilt.y) * 10))) }
 		}
 	}
 	return strings.to_string(b)
@@ -395,7 +397,7 @@ strokes_parse :: proc(text: string, out: ^[dynamic]Stroke) {
 				tx, okx := strconv.parse_int(fields[4])
 				ty, oky := strconv.parse_int(fields[5])
 				if !okx || !oky { continue }
-				tilt = {clamp(f32(tx) / 10, -90, 90), clamp(f32(ty) / 10, -90, 90)}
+				tilt = {turn.from_degrees(clamp(f32(tx) / 10, -90, 90)), turn.from_degrees(clamp(f32(ty) / 10, -90, 90))}
 			}
 			append(&st, ink.Sample{at = {f32(x) / 10, f32(y) / 10}, time = f64(t), pressure = pressure, tilt = tilt})
 		}
@@ -522,7 +524,7 @@ sign_compose :: proc(s: Signature, faces: [Script]pdf.Face, allocator := context
 		text := strings.trim_space(s.name)
 		// (the mention is a line of the same hand above the name: one stamp, one mark)
 		if s.mention { text = fmt.tprintf("%s\n%s", mention, text) }
-		st := pdf.Stamp{face = face, size = name_pt, color = color, text = strings.clone(text), tilt = s.tilt, weight = s.weight, flourish = s.flourish, caption = strings.clone(caption)}
+		st := pdf.Stamp{face = face, size = name_pt, color = color, text = strings.clone(text), tilt = turn.from_degrees(s.tilt), weight = s.weight, flourish = s.flourish, caption = strings.clone(caption)}
 		m.size = pdf.stamp_size(st)
 		append(&stamps, st)
 	case .Drawn:
