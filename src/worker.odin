@@ -39,7 +39,7 @@ Snapshot_Shape :: struct {
 Snapshot_Page :: struct {
 	id:       u64,
 	size:     [2]f32,
-	rotation: int,
+	quarters: int,   // quarter turns clockwise (pdf.Page.quarters): a count, not an angle
 	version:  u64,
 	stamps:   []Snapshot_Stamp,
 	shapes:   []Snapshot_Shape,
@@ -393,7 +393,7 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 	s.pages = make([]Snapshot_Page, len(w.pages))
 	for e, i in w.pages {
 		shown := pdf.shown_size(e.page)
-		sp := Snapshot_Page{id = e.id, size = shown, rotation = e.page.quarters, version = w.edits.versions[e.id]}
+		sp := Snapshot_Page{id = e.id, size = shown, quarters = e.page.quarters, version = w.edits.versions[e.id]}
 		if len(e.page.stamps) > 0 {
 			sp.stamps = make([]Snapshot_Stamp, len(e.page.stamps))
 			for st, k in e.page.stamps {

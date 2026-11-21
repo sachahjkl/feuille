@@ -55,7 +55,7 @@ pages_are_turned_removed_and_brought_back :: proc(t: ^testing.T) {
 	rev := app.snapshot.revision
 	session.key(s, .R, {.Ctrl})
 	next_snapshot(s, app, rev, "the page turned")
-	testing.expect_value(t, app.snapshot.pages[1].rotation, 1)
+	testing.expect_value(t, app.snapshot.pages[1].quarters, 1)
 	testing.expect_value(t, app.snapshot.pages[1].size, [2]f32{280, 210})
 	testing.expect(t, app.snapshot.edited && app.snapshot.can_undo, "edited, and it can be undone")
 
@@ -71,7 +71,7 @@ pages_are_turned_removed_and_brought_back :: proc(t: ^testing.T) {
 	next_snapshot(s, app, rev, "the removal undone")
 	testing.expect_value(t, len(app.snapshot.pages), 3)
 	testing.expect_value(t, app.snapshot.pages[1].id, id)
-	testing.expect_value(t, app.snapshot.pages[1].rotation, 1)
+	testing.expect_value(t, app.snapshot.pages[1].quarters, 1)
 
 	// redo removes it again; two undos bring back the document as opened
 	rev = app.snapshot.revision
@@ -84,7 +84,7 @@ pages_are_turned_removed_and_brought_back :: proc(t: ^testing.T) {
 		next_snapshot(s, app, rev, "an undo")
 	}
 	expect_widths(t, app, {200, 210, 220})
-	testing.expect_value(t, app.snapshot.pages[1].rotation, 0)
+	testing.expect_value(t, app.snapshot.pages[1].quarters, 0)
 	testing.expect(t, !app.snapshot.edited, "back as opened: not edited")
 }
 
