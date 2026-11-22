@@ -22,8 +22,8 @@ who knows one knows the others.
 - The palette's own sources (`src/palette_sources.odin`): `@` the pages ("Page 3 of 12", a number goes to that page),
   `/` the recent PDFs ([memory.md](memory.md)). Ctrl+G and Ctrl+Shift+O open the palette on them.
 - A right click on a page or a thumbnail selects it and opens its menu (`src/menus.odin`): the page's edits, then the
-  file's acts (Copy the path, Show in folder, Open with). The list of applications is read on a task when the menu
-  opens.
+  file's acts (Copy the path, Show in folder, Open with), and the system's shell actions for the file
+  (`ui.Shell_Menu`). Both lists are read off the interface thread when the menu opens.
 - The theme "Feuille" is warm: the dark of a wood table, the paper of the light mode, the accent of the logo's leaf. The
   page itself is always white: the engine draws on white, and a PDF's colours are the PDF's.
 - The masked opening is a preference (`view.form_layer`, off): a person who wants the layer at every open says so once.

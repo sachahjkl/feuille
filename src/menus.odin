@@ -28,7 +28,14 @@ MENU_WIDTH_EM :: 16
 // A right press on the page `id`, at `index`: it is selected, its menu opens at the pointer.
 page_menu_open :: proc(app: ^App, id: u64, index: int) {
 	app.selected, app.selected_at = id, index
-	if app.snapshot != nil { handlers_ask(app, app.snapshot.path) }
+	ui.shell_menu_clear(&app.shell_menu)
+	if app.snapshot != nil {
+		handlers_ask(app, app.snapshot.path)
+		if !app.headless && app.snapshot.path != "" {
+			excluded := ui.SHELL_MENU_DEFAULT_EXCLUDE
+			_ = ui.shell_menu_query(&app.shell_menu, &app.main.state, {paths = {app.snapshot.path}, exclude_verbs = excluded[:]})
+		}
+	}
 	ui.menu_open(PAGE_MENU, ui.mouse_pos())
 }
 
@@ -36,6 +43,7 @@ page_menu_open :: proc(app: ^App, id: u64, index: int) {
 menus_build :: proc(app: ^App, em: f32) {
 	if app.snapshot == nil { return }
 	if ui.menu(PAGE_MENU, em * MENU_WIDTH_EM) {
+		app.menu_was_open = true
 		item(app, .Rotate_Right)
 		item(app, .Rotate_Left)
 		item(app, .Move_Up)
@@ -48,6 +56,10 @@ menus_build :: proc(app: ^App, em: f32) {
 		item(app, .Copy_Path)
 		item(app, .Reveal)
 		if ui.menu_submenu(i18n.tr("Open with"), icon = ACTIONS[.Open_With].icon) { open_with_items(app) }
+		_ = ui.shell_menu_items(&app.shell_menu, prefix = "sh", separator = true, win = app.main.win, invoke = !app.headless)
+	} else if app.menu_was_open {
+		app.menu_was_open = false
+		ui.shell_menu_clear(&app.shell_menu)
 	}
 	if ui.menu(OPEN_WITH_MENU, em * MENU_WIDTH_EM) { open_with_items(app) }
 }

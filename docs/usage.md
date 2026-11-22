@@ -85,11 +85,12 @@ signatures of such a file (one you already have is not added again): take them t
 
   Where two strokes cross, the ink is laid twice and darker. A stylus's pressure widens and darkens the line; leaned,
   a felt pen or a brush lays the side of its tip, broader and lighter, and a fountain pen's nib turns with your hand
-  (Windows and Wayland; X11 gives no pressure yet). The
+  (Windows, Wayland and X11). The
   stroke under way is drawn at once; its ink settles when you lift the pen. The arrow takes the last stroke back;
   Clear starts again. A change of nib or thickness redraws what is there.
-- Both: the ink's colour (black, blue, dark blue), the size, "Read and approved" above it, and the place and the
-  date under it ("Done at Lyon, on 19/11/2026"). The date is today's; change it in its field.
+- Both: the ink's colour (black, blue, dark blue), the size, the language, "Read and approved" above it, and the
+  place and the date under it ("Done at Lyon, on 21 November 2026"). The date is today's: type or step each part,
+  or click it to spin its drums.
 - The words are in the document's language, whatever Feuille's: French, English, German, Spanish, Italian,
   Portuguese or Dutch, each with its own turns ("Lu et approuvé", "Fait à Lyon, le 21/11/2026"; "Gelesen und
   genehmigt", "Lyon, den 21.11.2026") and its own way of writing the date. Each signature keeps its language.

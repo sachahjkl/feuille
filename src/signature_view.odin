@@ -41,7 +41,6 @@ Sign_State :: struct {
 	ui_fonts:  [Script]font.Font_Id,       // the interface's copies, for the list (0: not read yet)
 	name:      ui.Line_Edit,
 	place:     ui.Line_Edit,
-	date:      ui.Line_Edit,
 	version:   u64,                        // moves with each change of `sig`
 	asked:     u64,                        // the version last asked of the preview thread
 	preview:   ^Sign_Preview,              // the newest answer (owned; nil: none yet)
@@ -97,7 +96,6 @@ sign_close :: proc(app: ^App) {
 	delete(s.lib)
 	ui.line_edit_destroy(&s.name)
 	ui.line_edit_destroy(&s.place)
-	ui.line_edit_destroy(&s.date)
 	for &p in s.pad { draw.path_destroy(&p) }
 	delete(s.pad)
 }
@@ -258,13 +256,12 @@ sign_take :: proc(app: ^App, i: int) {
 	s.chosen = clamp(i, 0, len(s.lib) - 1)
 	signature_free(&s.sig)
 	s.sig = signature_clone(s.lib[s.chosen])
-	if s.sig.date == "" {
-		s.sig.date = signature_today(s.sig.lang)
+	if s.sig.date.year <= 0 {
+		s.sig.date = signature_today()
 	}
 	s.tab = int(s.sig.mode)
 	ui.line_edit_set(&s.name, s.sig.name)
 	ui.line_edit_set(&s.place, s.sig.place)
-	ui.line_edit_set(&s.date, s.sig.date)
 	s.drawing = false
 	sign_pad_redo(s)
 	sign_changed(app)
@@ -592,30 +589,28 @@ common_part :: proc(app: ^App, em: f32) {
 				sign_changed(app)
 			}
 		}
-		ui.space(ui.CONTROL_GAP)
-		ui.next({width = ui.fill()})
-		if ui.form_row(i18n.tr("Size")) {
-			if ui.slider("###sign_scale", &s.sig.scale, 0.5, 2, 0.05, "%.2f×", 1) { sign_changed(app) }
+		ui.space(ui.SPACE_3)
+		if ui.tags("weak") {
+			ui.next({width = ui.text_size(), height = ui.px(ui.control_height())})
+			ui.label(fmt.tprintf("%s###sign_size_lbl", i18n.tr("Size")))
 		}
-	}
-	// (the words of the document's language, whatever the program's: each language named in itself)
-	ui.next({width = ui.fill()})
-	if ui.form_row(i18n.tr("Words in")) {
+		ui.space(ui.CONTROL_GAP)
+		ui.next({width = ui.fill(), height = ui.px(ui.control_height())})
+		ui.a11y({name = i18n.tr("Size")})
+		if ui.slider("###sign_scale", &s.sig.scale, 0.5, 2, 0.05, "%.2f×", 1) { sign_changed(app) }
+		ui.space(ui.SPACE_3)
+		// (the words of the document's language, whatever the program's: each language named in itself)
 		names := make([]string, len(Sign_Lang), context.temp_allocator)
 		for w, k in SIGN_WORDS { names[int(k)] = w.name }
 		lang := int(s.sig.lang)
+		ui.next({height = ui.px(ui.control_height())})
+		ui.a11y({name = i18n.tr("Language of the signature's words")})
 		if ui.dropdown("###sign_lang", names, &lang) {
-			old := s.sig.lang
 			s.sig.lang = Sign_Lang(lang)
-			// (today's date, untouched, is written as the new language writes it; a date the person typed stays)
-			if s.sig.date == signature_today(old, context.temp_allocator) {
-				delete(s.sig.date)
-				s.sig.date = signature_today(s.sig.lang)
-				ui.line_edit_set(&s.date, s.sig.date)
-			}
 			sign_changed(app)
 		}
 	}
+	ui.space(ui.SPACE_1)
 	ui.next({width = ui.fill()})
 	if ui.toggle("###sign_mention", fmt.tprintf(i18n.tr("“%s” above it"), SIGN_WORDS[s.sig.lang].mention), &s.sig.mention) { sign_changed(app) }
 	ui.next({width = ui.fill()})
@@ -624,21 +619,42 @@ common_part :: proc(app: ^App, em: f32) {
 		ui.space(ui.SPACE_1)
 		ui.next({width = ui.fill(), height = ui.children_sum()})
 		if ui.row(.Center) {
-			ui.next({width = ui.fill()})
+			ui.next({width = ui.fill(), height = ui.px(ui.control_height())})
 			if ui.line_edit("###sign_where", &s.place, {placeholder = i18n.tr("Place")}).changed {
 				delete(s.sig.place)
 				s.sig.place = strings.clone(ui.line_edit_string(&s.place))
 				sign_changed(app)
 			}
 			ui.space(ui.CONTROL_GAP)
-			ui.next({width = ui.px(em * 9)})
-			if ui.line_edit("###sign_when", &s.date, {placeholder = i18n.tr("Date")}).changed {
-				delete(s.sig.date)
-				s.sig.date = strings.clone(ui.line_edit_string(&s.date))
-				sign_changed(app)
-			}
+			if date_picker(s) { sign_changed(app) }
 		}
 	}
+}
+
+// A field of three parts (day, month, year), typed or stepped one by one, with their drums in a popover: month
+// names when the signature's language writes them in words, numbers otherwise.
+@(private = "file")
+date_picker :: proc(s: ^Sign_State) -> bool {
+	d := s.sig.date
+	if d.year <= 0 { d = signature_today() }
+	d.month = clamp(d.month, 1, 12)
+	d.year = clamp(d.year, 1970, 2100)
+	d.day = clamp(d.day, 1, days_in_month(d.month, d.year))
+	words := SIGN_WORDS[s.sig.lang].months[0] != ""
+	sep := SIGN_WORDS[s.sig.lang].date_sep
+	parts := [3]ui.Field_Part{
+		{lo = 1, hi = days_in_month(d.month, d.year), format = words ? "%d" : "%02d", wrap = true},
+		words ? ui.Field_Part{labels = SIGN_WORDS[s.sig.lang].months[:], wrap = true} : ui.Field_Part{lo = 1, hi = 12, format = "%02d", before = sep, wrap = true},
+		{lo = 1970, hi = 2100, before = words ? "" : sep},
+	}
+	values := [3]int{d.day, words ? d.month - 1 : d.month, d.year}
+	ui.next({height = ui.px(ui.control_height())})
+	ui.a11y({name = i18n.tr("Date")})
+	if !ui.parts_field("###sign_when", parts[:], values[:]) { return false }
+	month := words ? values[1] + 1 : values[1]
+	year := values[2]
+	s.sig.date = {year, month, min(values[0], days_in_month(month, year))}
+	return true
 }
 
 // What a picture of the preview draws: paper, and the signature in the middle, as large as it fits.

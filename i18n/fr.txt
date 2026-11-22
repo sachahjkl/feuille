@@ -520,8 +520,8 @@ fr Épaisseur du trait
 en Size
 fr Taille
 
-en Words in
-fr Mots en
+en Language of the signature's words
+fr Langue des mentions de la signature
 
 en “%s” above it
 fr « %s » au-dessus

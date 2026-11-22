@@ -110,23 +110,36 @@ sign_lang_default :: proc() -> Sign_Lang {
 	return .English
 }
 
+// A calendar date of a signature (`year` 0: none).
+Sign_Date :: struct {
+	year, month, day: int,
+}
+
+days_in_month :: proc(month, year: int) -> int {
+	switch month {
+	case 2: return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 ? 29 : 28
+	case 4, 6, 9, 11: return 30
+	}
+	return 31
+}
+
 // What the person composed. The strings and the strokes are owned (signature_free).
 Signature :: struct {
 	mode:      Sign_Mode,
 	name:      string,
 	script:    Script,
 	ink:       [3]u8,
-	tilt:      f32,      // degrees, rising to the right
-	weight:    f32,      // the pen's weight, thousandths of the size
+	tilt:      f32,       // degrees, rising to the right
+	weight:    f32,       // the pen's weight, thousandths of the size
 	flourish:  bool,
-	mention:   bool,     // "Read and approved" above it
-	dated:     bool,     // the line of the place and the date under it
+	mention:   bool,      // "Read and approved" above it
+	dated:     bool,      // the line of the place and the date under it
 	place:     string,
-	date:      string,   // not kept: today at each start
+	date:      Sign_Date, // not kept: today at each start
 	lang:      Sign_Lang, // the mention's and the caption's
-	scale:     f32,      // the size slider: 0.5 .. 2
+	scale:     f32,       // the size slider: 0.5 .. 2
 	pen:       Pen_Kind,
-	thickness: f32,      // the pen's width against its preset's: 0.5 .. 2.5
+	thickness: f32,       // the pen's width against its preset's: 0.5 .. 2.5
 	strokes:   [dynamic]Stroke,
 }
 
@@ -135,7 +148,6 @@ SIGNATURE_DEFAULT :: Signature{mode = .Typed, script = .Delafield, ink = {29, 64
 signature_free :: proc(s: ^Signature) {
 	delete(s.name)
 	delete(s.place)
-	delete(s.date)
 	for st in s.strokes { delete(st) }
 	delete(s.strokes)
 	s^ = {}
@@ -145,7 +157,6 @@ signature_clone :: proc(s: Signature, allocator := context.allocator) -> Signatu
 	out := s
 	out.name = strings.clone(s.name, allocator)
 	out.place = strings.clone(s.place, allocator)
-	out.date = strings.clone(s.date, allocator)
 	out.strokes = make([dynamic]Stroke, 0, len(s.strokes), allocator)
 	for st in s.strokes {
 		c := make(Stroke, len(st), allocator)
@@ -160,26 +171,29 @@ signature_ready :: proc(s: Signature) -> bool {
 	return s.mode == .Typed ? strings.trim_space(s.name) != "" : len(s.strokes) > 0
 }
 
-// A day as `lang` writes it on a document: "21/11/2026", "21 November 2026", "21.11.2026".
-sign_date :: proc(lang: Sign_Lang, y, m, d: int, allocator := context.allocator) -> string {
+// A day as `lang` writes it on a document: "21/11/2026", "21 November 2026", "21.11.2026" ("": none).
+sign_date :: proc(lang: Sign_Lang, d: Sign_Date, allocator := context.allocator) -> string {
+	if d.year <= 0 { return "" }
 	w := SIGN_WORDS[lang]
-	if w.months[0] != "" { return fmt.aprintf("%d %s %d", d, w.months[clamp(m, 1, 12) - 1], y, allocator = allocator) }
-	return fmt.aprintf("%02d%s%02d%s%d", d, w.date_sep, m, w.date_sep, y, allocator = allocator)
+	m := clamp(d.month, 1, 12)
+	day := clamp(d.day, 1, days_in_month(m, d.year))
+	if w.months[0] != "" { return fmt.aprintf("%d %s %d", day, w.months[m - 1], d.year, allocator = allocator) }
+	return fmt.aprintf("%02d%s%02d%s%d", day, w.date_sep, m, w.date_sep, d.year, allocator = allocator)
 }
 
-// Today, as the caption writes it in `lang`.
-signature_today :: proc(lang: Sign_Lang, allocator := context.allocator) -> string {
+// Today on the local clock.
+signature_today :: proc() -> Sign_Date {
 	// (the local clock: UTC moved by the zone's offset, read as UTC)
 	t := time.time_add(time.now(), time.Duration(timefmt.local_offset_minutes()) * time.Minute)
 	y, m, d := time.date(t)
-	return sign_date(lang, y, int(m), d, allocator)
+	return {y, int(m), d}
 }
 
 // The line under the signature, in its language: the place and the date, or one of them.
 signature_caption :: proc(s: Signature, allocator := context.temp_allocator) -> string {
 	if !s.dated { return "" }
 	w := SIGN_WORDS[s.lang]
-	place, date := strings.trim_space(s.place), strings.trim_space(s.date)
+	place, date := strings.trim_space(s.place), sign_date(s.lang, s.date, context.temp_allocator)
 	switch {
 	case place != "" && date != "": return fmt.aprintf(w.place_date, place, date, allocator = allocator)
 	case place != "":              return fmt.aprintf(w.place_only, place, allocator = allocator)
@@ -273,7 +287,7 @@ signature_read :: proc(fields: map[string]string, n: int, allocator := context.a
 	s.dated = flag(fields, n, "dated", s.dated)
 	s.strokes = make([dynamic]Stroke)
 	if v, has := get(fields, n, "strokes"); has { strokes_parse(v, &s.strokes) }
-	s.date = signature_today(s.lang)
+	s.date = signature_today()
 	return s, true
 }
 
@@ -329,7 +343,7 @@ signatures_load :: proc(st: ^store.Store, allocator := context.allocator) -> (li
 		s := SIGNATURE_DEFAULT
 		s.strokes = make([dynamic]Stroke, allocator)
 		s.lang = sign_lang_default()
-		s.date = signature_today(s.lang, allocator)
+		s.date = signature_today()
 		append(&list, s)
 	}
 	if v, ok := fields["chosen"]; ok {

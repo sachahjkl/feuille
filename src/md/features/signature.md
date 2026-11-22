@@ -46,11 +46,14 @@ It is not a digital signature: nothing proves who signed. It is the picture of a
   language. Seven languages, each with its usual turns, not a word-for-word translation ("Fait à Lyon, le …",
   "Lyon, den …", "Opgemaakt te Lyon op …") and its way of writing a date; the words are data of the signature
   (`SIGN_WORDS`), not texts of the interface's catalogue. A new signature takes the program's language when it is
-  one of them, else English; another one added takes the language of the one before. Today's date, untouched, is
-  written again when the language changes; a date the person typed stays.
+  one of them, else English; another one added takes the language of the one before. The language dropdown sits on
+  the ink-and-size bar with no separate label (its own name, "Français" or "English", already says what it is), right
+  above the switches it governs.
 - The values of a signature, each optional: "Read and approved" above it (in the script font: it is written by hand
-  in France), and a line under it with the place and the date ("Done at Paris, on 19/11/2026"). The date is today
-  at each opening, and the field can change it. The place is kept.
+  in France), and a line under it with the place and the date ("Done at Paris, on 19 November 2026"). The date is a
+  calendar value (`Sign_Date`: year, month, day; today at each start, not kept), edited with `ui.parts_field` and
+  its three drums (month names when the language writes them in words, numbers otherwise, the day bounded by the
+  month's length): changing the language formats the chosen date in the new language at once. The place is kept.
 - The colours are an ink's: black, blue, a dark blue. The size is one slider for both ways (a typed name's size, a
   drawing's width).
 - What the dialog shows under the tabs is the signature as it goes on the page: the engine renders it (the preview

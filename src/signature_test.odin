@@ -202,19 +202,21 @@ a_stylus_s_pressure_reaches_the_stroke :: proc(t: ^testing.T) {
 // The words are the signature's language's, whatever the program's: its mention, its caption's turn, its date.
 @(test)
 a_signature_s_words_are_in_its_own_language :: proc(t: ^testing.T) {
-	testing.expect_value(t, sign_date(.French, 2026, 11, 21, context.temp_allocator), "21/11/2026")
-	testing.expect_value(t, sign_date(.English, 2026, 11, 21, context.temp_allocator), "21 November 2026")
-	testing.expect_value(t, sign_date(.German, 2026, 3, 5, context.temp_allocator), "05.03.2026")
-	testing.expect_value(t, sign_date(.Dutch, 2026, 3, 5, context.temp_allocator), "05-03-2026")
+	testing.expect_value(t, sign_date(.French, {2026, 11, 21}, context.temp_allocator), "21/11/2026")
+	testing.expect_value(t, sign_date(.English, {2026, 11, 21}, context.temp_allocator), "21 November 2026")
+	testing.expect_value(t, sign_date(.German, {2026, 3, 5}, context.temp_allocator), "05.03.2026")
+	testing.expect_value(t, sign_date(.Dutch, {2026, 3, 5}, context.temp_allocator), "05-03-2026")
+	testing.expect_value(t, days_in_month(2, 2024), 29)
+	testing.expect_value(t, days_in_month(2, 2026), 28)
 	s := SIGNATURE_DEFAULT
-	s.dated, s.place, s.date = true, "Lyon", "21/11/2026"
+	s.dated, s.place, s.date = true, "Lyon", {2026, 11, 21}
 	cases := [?]struct { lang: Sign_Lang, want: string }{
 		{.French, "Fait à Lyon, le 21/11/2026"},
-		{.English, "Done at Lyon, on 21/11/2026"},
-		{.German, "Lyon, den 21/11/2026"},
+		{.English, "Done at Lyon, on 21 November 2026"},
+		{.German, "Lyon, den 21.11.2026"},
 		{.Spanish, "En Lyon, a 21/11/2026"},
 		{.Italian, "Lyon, lì 21/11/2026"},
-		{.Dutch, "Opgemaakt te Lyon op 21/11/2026"},
+		{.Dutch, "Opgemaakt te Lyon op 21-11-2026"},
 	}
 	for c in cases {
 		s.lang = c.lang
@@ -222,15 +224,40 @@ a_signature_s_words_are_in_its_own_language :: proc(t: ^testing.T) {
 	}
 	s.lang, s.place = .French, ""
 	testing.expect_value(t, signature_caption(s), "Le 21/11/2026")
+	s.place, s.date = "Lyon", {}
+	testing.expect_value(t, signature_caption(s), "Fait à Lyon")
 	// (kept and read back with its language)
 	s.lang = .German
 	text := signatures_text({s}, context.temp_allocator)
-	back, ok := signatures_parse(text, runtime.heap_allocator())
+	back, ok := signatures_parse(text)
 	defer {
 		for &b in back { signature_free(&b) }
 		delete(back)
 	}
 	testing.expect(t, ok && len(back) == 1 && back[0].lang == .German, "the language is kept")
+}
+
+// The date field opens its drums, steps its parts, and Escape closes the drums before the dialog.
+@(test)
+the_date_picker_opens_its_drums_and_steps_a_part :: proc(t: ^testing.T) {
+	s, app := start(t, write_pdf(t, "date.pdf", {pages = {{size = {300, 400}}}}))
+	session.wait_until(s, app, pictures_ready, "the document is drawn")
+	session.key(s, .S)
+	session.wait_until(s, app, dialog_ready, "the dialog opens")
+	app.sign.sig.dated = true
+	app.sign.sig.date = {2026, 3, 10}
+	sign_changed(app)
+	session.frames(s, 3)
+	// (the click lands on the middle part, the month; Up steps it, Left then Up steps the day)
+	session.click(s, "sign_when")
+	testing.expect(t, session.find(s, "drums") != nil, "clicking the date opens its drums")
+	session.key(s, .Up)
+	testing.expect_value(t, app.sign.sig.date.month, 4)
+	session.key(s, .Left)
+	session.key(s, .Up)
+	testing.expect_value(t, app.sign.sig.date.day, 11)
+	session.key(s, .Escape)
+	testing.expect(t, session.find(s, "drums") == nil && ui.view_is_open(&app.views, SIGN_VIEW), "Escape closes the drums, not the dialog")
 }
 
 // The exported file's text read back gives the same signatures; another file is refused.

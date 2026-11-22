@@ -144,6 +144,8 @@ App :: struct {
 	memory:        Memory,        // the recent PDFs, each one's page and zoom (recent.odin)
 	reopening:     bool,          // the open under way is the last document's, at the start: a failure is not said
 	handlers:      Handlers,      // the applications that open a PDF, for the menus' "Open with" (launch.odin)
+	shell_menu:    ui.Shell_Menu, // the system's shell actions for the open PDF (menus.odin)
+	menu_was_open: bool,
 
 	// what waits for an answer of a confirmation
 	leave_next:    Leave_Next,
@@ -289,6 +291,7 @@ app_close :: proc(app: ^App) {
 	devtools.stop(app.devtools)
 	pictures_clear(app)   // (before the renderer goes: the textures are its)
 	thumbs_clear(app)
+	ui.shell_menu_destroy(&app.shell_menu)   // (its icons' textures are this renderer's)
 	// (a dialog's answer comes to the window's state: the chores end before it does)
 	ui.chores_stop()
 	// (the install's thread waited for, before the window's state goes; its vendor's mark is this renderer's)
