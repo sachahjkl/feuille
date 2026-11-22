@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.10.1] - 2026-11-22 09:59
+
+### Fixed
+- **Opening the file dialog on Windows no longer crashes (`0xC0000374` heap corruption).** Listing a folder that holds NTFS junctions, symbolic links or OneDrive cloud reparse points (such as a user's home or Documents folder) double-freed the entry's path string because Odin's `os.stat` aliases its input path inside `File_Info.fullpath` on reparse points; link targets and thumbnail sizes are now resolved directly from Windows without `os.stat`.
+
 ## [0.10.0] - 2026-11-22 07:52
 
 ### Added
@@ -99,6 +104,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.10.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.10.1
 [0.10.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.10.0
 [0.9.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.9.0
 [0.8.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.8.0
