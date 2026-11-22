@@ -3,6 +3,14 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.10.0] - 2026-11-22 07:52
+
+### Added
+- **X11 stylus pressure and tilt, system shell actions, and wheel stepping.** A stylus's pressure and tilt now shape drawn signatures on X11 (XInput 2) as on Windows and Wayland; right-clicking a page or a file in the file browser shows the system's shell actions with their icons; closed dropdowns, segmented controls and numeric settings step with the mouse wheel; and opening a file or folder on Linux uses `xdg-open`.
+
+### Changed
+- **Signature date drums and compact language selector.** The signature dialog's date is now a multi-part field typed or stepped part by part, with spinning drums for day, month and year (month names when the language writes them in words, numbers otherwise, leap years included); changing the signature's language reformats the chosen date at once, and the language menu sits on the ink-and-size bar.
+
 ## [0.9.0] - 2026-11-21 10:10
 
 ### Added
@@ -91,6 +99,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.10.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.10.0
 [0.9.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.9.0
 [0.8.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.8.0
 [0.7.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.7.0

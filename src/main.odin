@@ -15,7 +15,7 @@ import prefs_page "gt:prefs_page"
 import "gt:process"
 import setup "gt:setup"
 
-APP_VERSION :: "0.9.0"
+APP_VERSION :: "0.10.0"
 APP_NAME    :: "feuille"
 APP_TITLE   :: "Feuille"
 APP_FOLDER  :: "FromentSoftware" + platform.USER_DIR_SEPARATOR + APP_TITLE
