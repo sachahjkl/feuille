@@ -132,6 +132,28 @@ a_long_document_builds_the_pages_in_view :: proc(t: ^testing.T) {
 	session.save_png(s, "window.png")   // (build/session/: what the window showed, to look at)
 }
 
+// Another program writes the document: the new version opens; while it holds edits, the edits stay.
+@(test)
+a_document_written_by_another_program_opens_again :: proc(t: ^testing.T) {
+	path := write_pdf(t, "watched.pdf", {})
+	s, app := start(t, path)
+	session.wait_until(s, app, pictures_ready, "the first version is drawn")
+	testing.expect_value(t, len(app.snapshot.pages), 1)
+	two := []fixture.Page{{size = {200, 200}}, {size = {200, 200}}}
+	testing.expect(t, os.write_entire_file(path, fixture.make_pdf({pages = two}, context.temp_allocator)) == nil)
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.snapshot != nil && len(app.snapshot.pages) == 2 }, "the second version opens")
+	session.wait_text(s, "watched.pdf changed on the disk and is opened again")
+
+	// edited: the third version is told, the edits stay
+	worker_edit(&app.worker, edit_ask_make(&app.worker, .Blank, id = app.snapshot.pages[0].id))
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.snapshot.edited }, "the document is edited")
+	three := []fixture.Page{{size = {200, 200}}, {size = {200, 200}}, {size = {200, 200}}, {size = {200, 200}}, {size = {200, 200}}}
+	testing.expect(t, os.write_entire_file(path, fixture.make_pdf({pages = three}, context.temp_allocator)) == nil)
+	session.wait_text(s, "watched.pdf changed on the disk: your edits stay on the version opened before")
+	testing.expect(t, app.snapshot.edited, "the edits stay")
+	testing.expect_value(t, len(app.snapshot.pages), 3)
+}
+
 // A PDF dropped on the window opens.
 @(test)
 a_dropped_pdf_opens :: proc(t: ^testing.T) {

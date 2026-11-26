@@ -53,6 +53,7 @@ fields). It arranges the pages (turn, add, remove, reorder), puts text on them, 
   document; the program's commands, the window's buttons, the context menus; the README's pictures
 - [features/desktop.md](features/desktop.md): the install, the single instance, the menu and the session switches,
   what waits on the system
+- [features/file-watch.md](features/file-watch.md): the document's file followed; a new version opens, edits are kept
 - [features/memory.md](features/memory.md): the recent PDFs, each one's page and zoom, the last one at the start
 - [features/masked-opening.md](features/masked-opening.md): why the layer is hidden, the password, the copy without
   security, the day-one test

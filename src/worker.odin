@@ -15,6 +15,7 @@ import "core:os"
 import "core:slice"
 import "core:strings"
 import "core:sync"
+import fsx "gt:fsx"
 import pdf "gt:pdf"
 import "gt:platform"
 import "gt:tasks"
@@ -52,6 +53,7 @@ Snapshot :: struct {
 	path:     string,
 	pages:    []Snapshot_Page,
 	edited:   bool,     // changed since it was opened or last saved
+	stamp:    i64,      // the file's stamp (fsx.stat) when the worker last read it or wrote it
 	can_undo: bool,
 	can_redo: bool,
 }
@@ -151,6 +153,7 @@ Worker :: struct {
 	sources:   [dynamic]pdf.Source, // the files imported since (their pages may come back with an undo)
 	has_doc:   bool,
 	path:      string,
+	stamp:     i64,   // the file's stamp when it was last read or written (Snapshot.stamp)
 	pages:     [dynamic]Doc_Page,
 	next_id:   u64,
 	revision:  u64,
@@ -315,6 +318,8 @@ worker_run :: proc(data: rawptr) {
 
 @(private = "file")
 open_now :: proc(w: ^Worker, path, password: string) -> bool {
+	// (before the read: a write that ends during it leaves a newer stamp, and the file is read again)
+	_, stamp, _ := fsx.stat(path)
 	bytes, read_err := os.read_entire_file_from_path(path, w.allocator)
 	if read_err != nil {
 		post_failure(w, path, .File)
@@ -330,6 +335,7 @@ open_now :: proc(w: ^Worker, path, password: string) -> bool {
 	w.base, w.has_doc = src, true
 	delete(w.path)
 	w.path = strings.clone(path)
+	w.stamp = stamp
 	w.revision += 1
 	for i in 0 ..< pdf.page_count(src) {
 		w.next_id += 1
@@ -420,6 +426,7 @@ post_snapshot :: proc(w: ^Worker, opened: bool) {
 		s.pages[i] = sp
 	}
 	s.edited = edit_state(&w.edits) != w.edits.saved
+	s.stamp = w.stamp
 	s.can_undo, s.can_redo = len(w.edits.undo) > 0, len(w.edits.redo) > 0
 	o := new(Opened)
 	o^ = {snapshot = s, user = w.answers.user}

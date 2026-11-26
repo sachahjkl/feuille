@@ -265,6 +265,12 @@ fr Le document n'a pas pu être imprimé
 en %s cannot be opened: %s
 fr %s ne peut pas être ouvert : %s
 
+en %s changed on the disk: your edits stay on the version opened before
+fr %s a changé sur le disque : vos modifications restent sur la version ouverte avant
+
+en %s changed on the disk and is opened again
+fr %s a changé sur le disque et est rouvert
+
 en Feuille in the terminal (on the PATH)
 fr Feuille dans le terminal (dans le PATH)
 
@@ -336,15 +342,6 @@ fr Remplissage
 
 en Open with
 fr Ouvrir avec
-
-en Reading…
-fr Lecture…
-
-en No application
-fr Aucune application
-
-en %s (default)
-fr %s (par défaut)
 
 en Pages
 fr Pages

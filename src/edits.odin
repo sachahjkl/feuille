@@ -8,6 +8,7 @@ package feuille
 import "core:os"
 import "core:slice"
 import "core:strings"
+import fsx "gt:fsx"
 import pdf "gt:pdf"
 
 // What the interface asks.
@@ -312,6 +313,7 @@ edit_now :: proc(w: ^Worker, a: ^Edit_Ask) -> (changed: bool) {
 			w.edits.saved = edit_state(&w.edits)
 			delete(w.path, w.allocator)
 			w.path = strings.clone(a.path, w.allocator)
+			_, w.stamp, _ = fsx.stat(a.path)   // (feuille's own write: not a change to open again)
 		}
 		post_saved(w, a.path, written, false)
 		return written   // (the title and the edit mark follow the new snapshot)

@@ -10,13 +10,11 @@ package feuille
 //   Save this page as a PDF…       Ctrl+E
 //   Copy the path                  Ctrl+Shift+C
 //   Show in folder
-//   Open with  ▸                   the applications the system knows for a PDF (gt:desktop), read on a task
+//   Open with  ▸                   the applications the system knows for a PDF, with their icons (ui.Open_With)
 //
 // "Open with another application…" (the command) opens the applications' list alone, at the pointer.
 
-import "core:fmt"
 import i18n "gt:i18n"
-import lucide "gt:lucide"
 import "gt:ui"
 
 PAGE_MENU      :: "feuille_page_menu"
@@ -30,7 +28,7 @@ page_menu_open :: proc(app: ^App, id: u64, index: int) {
 	app.selected, app.selected_at = id, index
 	ui.shell_menu_clear(&app.shell_menu)
 	if app.snapshot != nil {
-		handlers_ask(app, app.snapshot.path)
+		open_with_ask(app, app.snapshot.path)
 		if !app.headless && app.snapshot.path != "" {
 			excluded := ui.SHELL_MENU_DEFAULT_EXCLUDE
 			_ = ui.shell_menu_query(&app.shell_menu, &app.main.state, {paths = {app.snapshot.path}, exclude_verbs = excluded[:]})
@@ -73,17 +71,10 @@ item :: proc(app: ^App, a: Action) {
 	if sig.clicked { action_run(app, a) }
 }
 
-// The applications for the document, its default first; a row while they are read, one when there is none.
+// The applications for the document, with their icons, its default first. The one chosen starts through launch: the
+// tests note it, and a failure is said in the status bar as the other launches'.
 @(private = "file")
 open_with_items :: proc(app: ^App) {
-	h := &app.handlers
-	path := app.snapshot.path
-	ready := h.path == path && h.ready
-	if !ready { _ = ui.menu_item(i18n.tr("Reading…"), disabled = true); return }
-	if len(h.list) == 0 { _ = ui.menu_item(i18n.tr("No application"), disabled = true); return }
-	for x, i in h.list {
-		name := ui.text_shown(x.name)
-		label := x.default ? fmt.tprintf("%s###ow%d", fmt.tprintf(i18n.tr("%s (default)"), name), i) : fmt.tprintf("%s###ow%d", name, i)
-		if ui.menu_item(label, icon = lucide.APP_WINDOW).clicked { launch(app, .Open_With, path, x.id, x.name) }
-	}
+	if !ui.open_with_items(&app.open_with, "ow") { return }
+	if h, ok := ui.open_with_chosen(&app.open_with); ok { launch(app, .Open_With, app.open_with.path, h.id, h.name) }
 }

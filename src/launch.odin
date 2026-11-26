@@ -88,64 +88,11 @@ launch_free :: proc(l: ^Launch) {
 }
 
 ////////////////////////////////
-// "Open with": the applications the system knows for a PDF
+// "Open with": the applications the system knows for a PDF (ui.Open_With: read with their icons on a chore)
 
-// What the menus show under "Open with": asked of a task for the document open, kept until another is.
-Handlers :: struct {
-	path:  string,              // owned: the document they were asked for ("": none)
-	list:  []desktop.Handler,   // owned (the heap's)
-	ready: bool,
-}
-
-@(private = "file")
-Handlers_Read :: struct {
-	app:  ^App,
-	path: string,   // owned
-	list: []desktop.Handler,
-}
-
-// The applications for `path`, asked once per document (the system's associations are files: read on a task).
-handlers_ask :: proc(app: ^App, path: string) {
-	context.allocator = runtime.heap_allocator()
-	h := &app.handlers
-	if h.path == path { return }
-	handlers_free(h)
-	h.path = strings.clone(path)
-	// (the tests read none of the person's associations: no application)
-	if app.headless { h.ready = true; return }
-	job := new(Handlers_Read)
-	job^ = {app = app, path = strings.clone(path)}
-	work :: proc(data: rawptr) {
-		job := (^Handlers_Read)(data)
-		job.list = desktop.handlers_for_file(job.path)
-		if !ui.post(&job.app.main.state, handlers_done, job) { handlers_read_free(job) }
-	}
-	if !tasks.add(&app.pool, work, job) { handlers_read_free(job) }
-}
-
-@(private = "file")
-handlers_done :: proc(data: rawptr, _: u64) {
-	job := (^Handlers_Read)(data)
-	h := &job.app.handlers
-	if h.path == job.path && !h.ready {
-		h.list, h.ready = job.list, true
-		job.list = nil
-		host.host_settle(&job.app.main)
-	}
-	handlers_read_free(job)
-}
-
-@(private = "file")
-handlers_read_free :: proc(job: ^Handlers_Read) {
-	context.allocator = runtime.heap_allocator()
-	if job.list != nil { desktop.handlers_destroy(job.list) }
-	delete(job.path)
-	free(job)
-}
-
-handlers_free :: proc(h: ^Handlers) {
-	context.allocator = runtime.heap_allocator()
-	if h.list != nil { desktop.handlers_destroy(h.list) }
-	delete(h.path)
-	h^ = {}
+// The applications for the document `path`, asked once per document: the menus show them, and keep them until another is.
+open_with_ask :: proc(app: ^App, path: string) {
+	ow := &app.open_with
+	if ow.state != .Idle && ow.path == path { return }
+	ui.open_with_ask(ow, &app.main.state, path)
 }

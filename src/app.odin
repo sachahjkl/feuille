@@ -14,6 +14,7 @@ import "core:slice"
 import "core:strings"
 import config "gt:config"
 import crash_bar "gt:crash_bar"
+import desktop "gt:desktop"
 import "gt:devtools"
 import "gt:font"
 import host "gt:host"
@@ -143,8 +144,9 @@ App :: struct {
 	go_jump:       bool,          // go_to is reached at once, not scrolled to (a document opened at its last page)
 	memory:        Memory,        // the recent PDFs, each one's page and zoom (recent.odin)
 	reopening:     bool,          // the open under way is the last document's, at the start: a failure is not said
-	handlers:      Handlers,      // the applications that open a PDF, for the menus' "Open with" (launch.odin)
+	open_with:     ui.Open_With,  // the applications that open the PDF, with their icons, for the menus' "Open with"
 	shell_menu:    ui.Shell_Menu, // the system's shell actions for the open PDF (menus.odin)
+	doc_watch:     Doc_Watch,     // the document's file followed on the disk (file_watch.odin)
 	menu_was_open: bool,
 
 	// what waits for an answer of a confirmation
@@ -197,6 +199,8 @@ app_open :: proc(o: App_Options) -> ^App {
 	// (the announcer is set up with the window: the install says through it when the desktop refuses a setting)
 	prefs_page.install_init(&app.install, &app.prefs, setup_options(), &app.announcer)
 	memory_open(app)
+	// (the tests read none of the person's associations: no application)
+	if o.headless { app.open_with.handlers_of = proc(_: string, _: runtime.Allocator) -> []desktop.Handler { return nil } }
 
 	// (before the first window: Wayland and the taskbar group the windows by it)
 	if !o.headless { platform.set_app_id(APP_NAME) }
@@ -257,6 +261,7 @@ app_open :: proc(o: App_Options) -> ^App {
 	app.frame_asks = make([dynamic]Render_Ask)
 	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture, saved = on_saved, printed = on_printed, window = o.headless ? nil : h.win})
 	sign_init(app)
+	doc_watch_start(app)
 	switch {
 	case o.path != "":
 		app_open_file(app, o.path, "")
@@ -283,6 +288,7 @@ app_close :: proc(app: ^App) {
 	context.allocator = runtime.heap_allocator()
 	if !app.headless && app.main.win != nil { prefs_page.placement_keep(&app.placement, &app.prefs, app.main.win) }
 	ui.post_close(&app.main.state)
+	doc_watch_stop(app)
 	worker_stop(&app.worker)
 	sign_close(app)   // (its texture is the renderer's: before the window goes)
 	// (their answers find the window closed: each task frees what it was given)
@@ -292,6 +298,7 @@ app_close :: proc(app: ^App) {
 	pictures_clear(app)   // (before the renderer goes: the textures are its)
 	thumbs_clear(app)
 	ui.shell_menu_destroy(&app.shell_menu)   // (its icons' textures are this renderer's)
+	ui.open_with_destroy(&app.open_with)     // (so are its applications' icons)
 	// (a dialog's answer comes to the window's state: the chores end before it does)
 	ui.chores_stop()
 	// (the install's thread waited for, before the window's state goes; its vendor's mark is this renderer's)
@@ -331,7 +338,6 @@ app_free :: proc(app: ^App) {
 	delete(app.exe)
 	for o in app.opened { delete(o) }
 	delete(app.opened)
-	handlers_free(&app.handlers)
 	memory_close(app)   // (what changed is written: the stores' workers end)
 	ui.line_edit_destroy(&app.password)
 	ui.zoom_zone_destroy(&app.zone)
@@ -441,6 +447,7 @@ on_opened :: proc(data: rawptr, _: u64) {
 		// (a text edit open on a page that changed under it is let go)
 		if app.text.open && !page_exists(s, app.text.id) { text_edit_close(app) }
 	}
+	doc_watch_follow(app, s.path, s.stamp)
 	app_title(app)
 	host.host_settle(&app.main)
 }

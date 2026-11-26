@@ -132,7 +132,7 @@ pref_set_string :: proc(app: ^App, name, text: string) {
 
 // "Open with another application…": the menu of the applications the system knows for a PDF, at the pointer.
 act_open_with :: proc(app: ^App) {
-	handlers_ask(app, app.snapshot.path)
+	open_with_ask(app, app.snapshot.path)
 	ui.menu_open(OPEN_WITH_MENU, ui.mouse_pos())
 }
 
