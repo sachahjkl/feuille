@@ -3,6 +3,14 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.11.0] - 2026-11-26 06:17
+
+### Changed
+- **The file dialog follows its folder and its preview can be closed.** The list updates when files change in the folder, the mouse side buttons go back and forward, the preview closes with Alt+P and stays closed, thumbnails come at the size of their card, and names sort in reading order (file2 before file10).
+
+### Fixed
+- **Rectangle selection works in scrolled views.** A selection drawn after scrolling now covers what the mouse went over.
+
 ## [0.10.1] - 2026-11-22 09:59
 
 ### Fixed
@@ -104,6 +112,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.11.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.11.0
 [0.10.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.10.1
 [0.10.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.10.0
 [0.9.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.9.0
