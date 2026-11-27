@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.15.0] - 2026-11-27 11:12
+
+### Changed
+- **The signature dialog can be resized, and its preview zoomed.** Make the dialog taller and the preview grows with it; the wheel, a double click, + and - zoom into the signature, a drag moves it, and a finer picture comes for a close zoom. A taller preview shows its zoom and the buttons −, +, 1:1 and Fit.
+
 ## [0.14.1] - 2026-11-27 10:48
 
 ### Changed
@@ -148,6 +153,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.15.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.15.0
 [0.14.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.14.1
 [0.14.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.14.0
 [0.13.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.13.0
