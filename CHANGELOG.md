@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.17.1] - 2026-11-27 20:45
+
+### Changed
+- **The signature's tabs hold their page.** What "Type it" or "Draw it" shows sits on a page joined to its tab, framed apart from the colour, the words and the preview, which serve both.
+
 ## [0.17.0] - 2026-11-27 18:52
 
 ### Changed
@@ -176,6 +181,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.17.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.17.1
 [0.17.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.17.0
 [0.16.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.16.1
 [0.16.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.16.0
