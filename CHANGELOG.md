@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.16.1] - 2026-11-27 17:10
+
+### Fixed
+- **The page keys go one page at a time, and the arrows turn pages.** ← and → go to the previous and the next page, as Page Up and Page Down do. Quick presses during a scroll add up instead of being lost, a short page is no longer skipped, and Page Up in the middle of a page goes to its top first.
+
 ## [0.16.0] - 2026-11-27 14:40
 
 ### Changed
@@ -166,6 +171,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.16.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.16.1
 [0.16.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.16.0
 [0.15.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.15.1
 [0.15.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.15.0
