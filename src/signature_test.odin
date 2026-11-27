@@ -238,6 +238,32 @@ a_signature_s_words_are_in_its_own_language :: proc(t: ^testing.T) {
 }
 
 // The date field opens its drums, steps its parts, and Escape closes the drums before the dialog.
+// The preview zooms: the wheel over it enlarges the signature, and a finer picture comes for it, the same size on the
+// paper (its points at the interface's scale).
+@(test)
+the_preview_zooms_into_a_finer_picture :: proc(t: ^testing.T) {
+	s, app := start(t, write_pdf(t, "zoom.pdf", {}))
+	session.wait_until(s, app, pictures_ready, "the document is drawn")
+	session.key(s, .S)
+	session.wait_until(s, app, dialog_ready, "the dialog opens")
+	app.sign.sig.mode, app.sign.tab = .Typed, 0
+	session.type_text(s, "Camille")
+	// (the picture for the zoom that fits it: the one the dialog keeps until a zoom asks more)
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool {
+		return preview_ready(s, app) && app.sign.preview.px_per_pt == app.sign.detail
+	}, "the preview")
+	first := app.sign.preview.px_per_pt
+	b := session.get(s, "sign_preview")
+	k := app.main.state.scale
+	session.wheel(s, (b.rect.min + b.rect.max) / 2 * k, {0, -8})
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return app.sign.zoom.zoom > 1 }, "the wheel zooms")
+	session.wait_until(s, Sign_Wait{app, u64(first * 1000)}, proc(s: ^session.Session, r: Sign_Wait) -> bool {
+		p := r.app.sign.preview
+		return p != nil && u64(p.px_per_pt * 1000) > r.after && r.app.sign.tex_size == p.px
+	}, "a finer picture for the zoom")
+	testing.expect(t, sign_detail(1, 1) == 2 && sign_detail(1, 3) == 8 && sign_detail(1, 100) == SIGN_DETAIL_MOST, "the steps of the detail")
+}
+
 @(test)
 the_date_picker_opens_its_drums_and_steps_a_part :: proc(t: ^testing.T) {
 	s, app := start(t, write_pdf(t, "date.pdf", {pages = {{size = {300, 400}}}}))

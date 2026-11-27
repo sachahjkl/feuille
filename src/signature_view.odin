@@ -46,6 +46,10 @@ Sign_State :: struct {
 	preview:   ^Sign_Preview,              // the newest answer (owned; nil: none yet)
 	tex:       render.Texture,
 	tex_size:  [2]int,                     // {}: no texture
+	zoom:      ui.Preview,                 // the preview's zoom and pan (ui.preview)
+	detail:    f32,                        // the preview's pixels a point at the zoom shown (sign_detail)
+	detail_asked: f32,
+	paper_h:   f32,                        // the preview's height as the last build laid it out
 	tab:       int,                        // the dialog's tab (Sign_Mode)
 	focus:     bool,                       // the next build gives the name's field the keyboard
 	pad:       [dynamic]draw.Path,         // each stroke's outline in the pad's units: the pad draws a stroke the
@@ -76,7 +80,7 @@ sign_init :: proc(app: ^App) {
 	s.pad = make([dynamic]draw.Path)
 	sign_take(app, s.chosen)
 	sign_thread_start(&s.thread, {state = &app.main.state, user = app, faces = on_sign_faces, preview = on_sign_preview, linear = render.blend_space(&app.shared.r) == .Linear})
-	ui.view_register(&app.views, SIGN_VIEW, signature_view, {title = i18n.later("Signature"), icon = lucide.SIGNATURE, icon_font = ui.lucide_icons(), width_em = 40})
+	ui.view_register(&app.views, SIGN_VIEW, signature_view, {title = i18n.later("Signature"), icon = lucide.SIGNATURE, icon_font = ui.lucide_icons(), width_em = 40, min_width_em = 34, resizable = true})
 }
 
 // Before the renderer goes: the thread ends, the texture goes, the store writes what is left.
@@ -162,9 +166,11 @@ sign_changed :: proc(app: ^App) {
 sign_follow :: proc(app: ^App) {
 	s := &app.sign
 	// (the pad's picture asked again when the pad changed size: the dialog resized)
-	if s.faces_ok && (s.asked != s.version || s.pad_px != s.pad_px_asked) {
-		s.asked, s.pad_px_asked = s.version, s.pad_px
-		sign_thread_ask(&s.thread, s.version, s.sig, ui.scale() * 2, ui.view_is_open(&app.views, SIGN_VIEW) ? s.pad_px : {}, s.pad_epoch)
+	// (and the preview again when its zoom needs finer pixels)
+	if s.detail <= 0 { s.detail = ui.scale() * 2 }
+	if s.faces_ok && (s.asked != s.version || s.pad_px != s.pad_px_asked || s.detail != s.detail_asked) {
+		s.asked, s.pad_px_asked, s.detail_asked = s.version, s.pad_px, s.detail
+		sign_thread_ask(&s.thread, s.version, s.sig, s.detail, ui.view_is_open(&app.views, SIGN_VIEW) ? s.pad_px : {}, s.pad_epoch)
 	}
 	if code, ok := ui.view_ended(&app.views, SIGN_VIEW); ok {
 		sign_keep(app)
@@ -468,7 +474,8 @@ signature_view :: proc(v: ^ui.View, app: ^App) {
 	s := &app.sign
 	sig := &s.sig
 	em := ui.font_size()
-	if ui.dialog_body("body") {
+	// (stretched: the preview takes what a taller dialog gives)
+	if ui.dialog_body("body", stretch = true) {
 		library_part(app, em)
 		ui.space(ui.SPACE_3)
 		ui.next({width = ui.fill(), height = ui.children_sum()})
@@ -657,40 +664,69 @@ date_picker :: proc(s: ^Sign_State) -> bool {
 	return true
 }
 
-// What a picture of the preview draws: paper, and the signature in the middle, as large as it fits.
+// The preview's least height, in ems: what it takes in a dialog not made taller.
+SIGN_PREVIEW_LEAST_EM :: 7
+// ... and the height, in ems, from which it shows the zoom's bar.
+SIGN_PREVIEW_BAR_EM :: 12
+// The paper around the signature, in device pixels at the zoom 100 %.
+SIGN_PAPER_MARGIN :: 12
+// The finest picture the zoom asks: this many times the interface's pixels (the engine renders it on each change).
+SIGN_DETAIL_MOST :: 8
+
+// What the preview draws: the paper over all of its box, and the signature in the rectangle the zoom gives it.
 @(private = "file")
 Sign_Paper :: struct {
-	tex:   render.Texture,
-	px:    [2]int,
-	has:   bool,
-	edge:  draw.Color,
-	scale: f32,
+	tex:    render.Texture,
+	has:    bool,
+	edge:   draw.Color,
+	scale:  f32,
+	margin: f32,   // of the content's width
 }
 
 @(private = "file")
-sign_paper_draw :: proc(b: ^ui.Box, user: rawptr, dc: ^draw.Context) {
+sign_paper_draw :: proc(dc: ^draw.Context, dst: ui.Rect, user: rawptr) {
 	d := (^Sign_Paper)(user)
-	r := b.rect
+	r := draw.current_clip(dc)   // (the preview's box: it clips what it draws)
 	draw.rect(dc, r, draw.WHITE, radius = 4 * d.scale)
 	draw.rect(dc, r, d.edge, radius = 4 * d.scale, border = d.scale)
 	if !d.has { return }
-	room := (r.max - r.min) - 12 * d.scale
-	px := [2]f32{f32(d.px.x), f32(d.px.y)} / 2   // (rendered at twice the interface's scale: crisp)
-	k := min(room.x / max(px.x, 1), room.y / max(px.y, 1), d.scale)
-	size := px * k
-	at := (r.min + r.max - size) / 2
-	draw.image(dc, d.tex, {at, at + size})
+	inset := (dst.max.x - dst.min.x) * d.margin
+	draw.image(dc, d.tex, {dst.min + inset, dst.max - inset})
 }
 
+// The signature on paper, fitted to the room the dialog gives; the wheel, a double click, the keys and the bar in its
+// corner zoom it and a drag moves it (ui.preview). A zoom past the picture's pixels asks a finer one.
 @(private = "file")
 preview_part :: proc(app: ^App, em: f32) {
 	s := &app.sign
+	scale := ui.scale()
 	d := ui.frame_new(Sign_Paper)
-	d.tex, d.px, d.has = s.tex, s.tex_size, s.tex_size != {} && s.preview != nil && s.preview.rgba != nil
-	d.edge, d.scale = ui.color("border"), ui.scale()
-	ui.next({width = ui.fill(), height = ui.px(em * 7)})
-	b := ui.custom("###sign_preview", sign_paper_draw, d)
-	if ui.a11y_wanted() { ui.a11y_set(b, {role = .Image, name = i18n.tr("The signature as it goes on the page")}) }
+	d.tex, d.has = s.tex, s.tex_size != {} && s.preview != nil && s.preview.rgba != nil
+	d.edge, d.scale = ui.color("border"), scale
+	// (the content in device pixels at the zoom 100 %: the signature's points at the interface's scale, and its paper)
+	content := [2]f32{1, 1}
+	if d.has {
+		ink := [2]f32{f32(s.tex_size.x), f32(s.tex_size.y)} * scale / s.preview.px_per_pt
+		margin := SIGN_PAPER_MARGIN * scale
+		content = ink + 2 * margin
+		d.margin = margin / content.x
+	}
+	ui.next({width = ui.fill(), height = ui.fill_least(em * SIGN_PREVIEW_LEAST_EM)})
+	// (the zoom's bar over a small preview hides the signature: it shows once the dialog is made taller)
+	bar := s.paper_h >= em * SIGN_PREVIEW_BAR_EM
+	res := ui.preview("###sign_preview", &s.zoom, content, sign_paper_draw, d, {buttons = bar, grow = true})
+	s.paper_h = res.box.rect.max.y - res.box.rect.min.y
+	if ui.a11y_wanted() { ui.a11y_set(res.box, {role = .Image, name = i18n.tr("The signature as it goes on the page")}) }
+	// (no picture yet: its size is not known, nor the zoom it fits at)
+	if d.has { s.detail = sign_detail(scale, res.percent / 100) }
+}
+
+// The preview's pixels a point for a zoom of `shown` device pixels a content's pixel: twice what is shown (a picture as
+// sharp as the interface's text), in steps of two so a zoom that moves renders again only at each step.
+sign_detail :: proc(scale, shown: f32) -> f32 {
+	step: f32 = 1
+	for step < shown && step < SIGN_DETAIL_MOST / 2 { step *= 2 }
+	return scale * 2 * step
 }
 
 ////////////////////////////////

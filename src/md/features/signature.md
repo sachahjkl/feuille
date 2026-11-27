@@ -59,6 +59,12 @@ It is not a digital signature: nothing proves who signed. It is the picture of a
 - What the dialog shows under the tabs is the signature as it goes on the page: the engine renders it (the preview
   thread, below), so the preview is the saved result, tilt, flourish and caption included. The font list and the
   pad are drawn by the interface at once, so typing and drawing never wait.
+- The dialog is resizable; the preview takes what a taller dialog gives (`dialog_body(stretch)`, the preview
+  `fill_least`), so a long signature with its mention and caption is seen large. It zooms and pans as every preview of
+  the toolkit (`ui.preview`: the wheel, a double click, the keys, a drag); its zoom's bar shows once the preview is
+  tall enough not to hide the signature. A zoom past the picture's pixels asks the thread for a finer picture, in
+  steps of two (`sign_detail`, at most eight times the interface's pixels): a wheel that turns renders again at each
+  step, not at each notch. Refused: a vector preview drawn by the interface; the engine's picture is what is placed.
 - The person keeps several signatures: their own, their initials, a colleague's mandate, a drawn one and a typed
   one. The dialog's top row lists them (a typed one shows its name in its hand, a drawn one its number); a click
   chooses the one the dialog edits and places, "+" adds a new one, the bin removes the chosen one (never the last).

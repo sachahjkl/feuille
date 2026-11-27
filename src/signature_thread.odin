@@ -38,6 +38,7 @@ Sign_Preview :: struct {
 	marks:       Sign_Marks,
 	rgba:        []u8,
 	px:          [2]int,
+	px_per_pt:   f32,      // the pixels a point of `px` (the preview's zoom asks a finer one)
 	pad_rgba:    []u8,
 	pad_px:      [2]int,
 	pad_strokes: int,
@@ -120,7 +121,7 @@ sign_run :: proc(data: rawptr) {
 	defer signature_free(&sig)
 	linear := t.answers.linear
 	p := new(Sign_Preview)
-	p.serial, p.epoch, p.user = serial, epoch, t.answers.user
+	p.serial, p.epoch, p.user, p.px_per_pt = serial, epoch, t.answers.user, px
 	// (the pad's finished strokes, as the engine lays them: gt:draw's polygon fill is not made for a grained ink's
 	// hundreds of pieces; the stroke under way the pad draws itself)
 	if sig.mode == .Drawn && len(sig.strokes) > 0 && pad_px.x > 0 && pad_px.y > 0 {
