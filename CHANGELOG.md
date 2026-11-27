@@ -3,6 +3,14 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.16.0] - 2026-11-27 14:40
+
+### Changed
+- **Feuille starts faster.** The graphics device and its first shaders are made while the window opens.
+
+### Fixed
+- **A save is whole or nothing.** Saving a PDF, a page extracted or the signatures writes a new file and puts it in place at once: a save cut halfway (a full disk, a crash) leaves the file as it was, and a file saved over keeps its permissions and its links. feuille's own save no longer counts as a change made by another program.
+
 ## [0.15.1] - 2026-11-27 12:58
 
 ### Security
@@ -158,6 +166,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.16.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.16.0
 [0.15.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.15.1
 [0.15.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.15.0
 [0.14.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.14.1
