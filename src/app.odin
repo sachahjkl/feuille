@@ -262,6 +262,7 @@ app_open :: proc(o: App_Options) -> ^App {
 	worker_start(&app.worker, {state = &h.state, user = app, opened = on_opened, failed = on_open_failed, picture = on_picture, saved = on_saved, printed = on_printed, window = o.headless ? nil : h.win})
 	sign_init(app)
 	doc_watch_start(app)
+	debug_panel_register(app)
 	switch {
 	case o.path != "":
 		app_open_file(app, o.path, "")
@@ -602,13 +603,11 @@ on_picture :: proc(data: rawptr, _: u64) {
 // Thumbnails kept beyond those in view.
 THUMBS_KEPT :: 200
 
-@(private = "file")
 pictures_clear :: proc(app: ^App) {
 	for _, s in app.pictures { render.destroy_texture(&app.shared.r, s.tex) }
 	clear(&app.pictures)
 }
 
-@(private = "file")
 thumbs_clear :: proc(app: ^App) {
 	for _, s in app.thumbs { render.destroy_texture(&app.shared.r, s.tex) }
 	clear(&app.thumbs)

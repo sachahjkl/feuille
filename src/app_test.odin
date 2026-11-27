@@ -6,7 +6,9 @@ package feuille
 import "base:runtime"
 import "core:fmt"
 import "core:os"
+import "core:strings"
 import "core:testing"
+import debug "gt:debug"
 import host "gt:host"
 import "gt:platform"
 import "gt:testkit"
@@ -152,6 +154,22 @@ a_document_written_by_another_program_opens_again :: proc(t: ^testing.T) {
 	session.wait_text(s, "watched.pdf changed on the disk: your edits stay on the version opened before")
 	testing.expect(t, app.snapshot.edited, "the edits stay")
 	testing.expect_value(t, len(app.snapshot.pages), 3)
+}
+
+// The debug panel names the document and acts on the program: a tool shows the layer, then drops the pictures, which
+// come back.
+@(test)
+the_debug_panel_reads_and_acts :: proc(t: ^testing.T) {
+	path := write_pdf(t, "debug.pdf", {layer = true})
+	s, app := start(t, path)
+	session.wait_until(s, app, pictures_ready, "the page is drawn")
+	sb := strings.builder_make(context.temp_allocator)
+	debug.list(&app.main.state, &sb)
+	testing.expect(t, strings.contains(strings.to_string(sb), "debug.pdf"), "the panel names the document")
+	testing.expect_value(t, debug.set(&app.main.state, "Feuille/View/form layer", "true"), "")
+	testing.expect(t, app.layer, "the tool shows the layer")
+	testing.expect_value(t, debug.press(&app.main.state, "Feuille/Caches/Drop the pictures"), "")
+	session.wait_until(s, app, pictures_ready, "the pictures come back")
 }
 
 // A PDF dropped on the window opens.
