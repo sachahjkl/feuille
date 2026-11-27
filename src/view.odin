@@ -374,6 +374,11 @@ pages_column :: proc(app: ^App, box: ^ui.Box, zoom: f32, window: host.Vec2) {
 	app.go_to, app.go_jump = -1, false
 	top := box.view_off.y
 	app.current, _ = layout_at(l^, top + view.y / 2)
+	// (the keys step from where the view goes, not where it is: presses that come during the scroll add up, and a
+	// page shorter than half the view is not skipped)
+	aim := box.view_target.y + PAGE_MARGIN
+	app.aim, _ = layout_at(l^, aim + 1)
+	app.aim_at_top = app.aim >= 0 && abs(l.tops[app.aim] - aim) < 1
 	recent_page_keep(app)
 	first, last := layout_range(l^, top - view.y * VIEW_AHEAD, top + view.y * (1 + VIEW_AHEAD))
 	want_pictures(app, l, first, last, top + view.y / 2, false)

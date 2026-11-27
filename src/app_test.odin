@@ -172,6 +172,31 @@ the_debug_panel_reads_and_acts :: proc(t: ^testing.T) {
 	session.wait_until(s, app, pictures_ready, "the pictures come back")
 }
 
+// The keys go from page to page: Page Down and the right arrow to the next, Page Up and the left arrow back.
+@(test)
+the_keys_turn_the_pages :: proc(t: ^testing.T) {
+	pages := make([]fixture.Page, 4, context.temp_allocator)
+	for &p in pages { p = {size = {200, 280}} }
+	s, app := start(t, write_pdf(t, "keys.pdf", {pages = pages}))
+	session.wait_until(s, app, pictures_ready, "the first page is drawn")
+	// (a click on the page first: the column it is in has the keyboard, as when a person reads)
+	session.click(s, fmt.tprintf("page%d", app.snapshot.pages[0].id))
+	Want :: struct { app: ^App, page: int }
+	at :: proc(s: ^session.Session, w: Want) -> bool { return w.app.current == w.page }
+	session.key(s, .Page_Down)
+	session.wait_until(s, Want{app, 1}, at, "Page Down: the second page")
+	session.key(s, .Right)
+	session.wait_until(s, Want{app, 2}, at, "the right arrow: the third page")
+	session.key(s, .Page_Up)
+	session.wait_until(s, Want{app, 1}, at, "Page Up: the second page again")
+	session.key(s, .Left)
+	session.wait_until(s, Want{app, 0}, at, "the left arrow: the first page")
+	// presses during the scroll add up: two at once go two pages on
+	session.key(s, .Page_Down)
+	session.key(s, .Page_Down)
+	session.wait_until(s, Want{app, 2}, at, "two quick presses: the third page")
+}
+
 // A PDF dropped on the window opens.
 @(test)
 a_dropped_pdf_opens :: proc(t: ^testing.T) {

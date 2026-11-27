@@ -26,6 +26,10 @@ size of the document.
 
 ## Subtleties
 
+- The page keys (Page Up, Page Down, ← and →) step from the page where the scroll goes, not from the page in the
+  middle of the view: presses made during a smooth scroll add up, and a page shorter than half the view is not
+  skipped. Page Up goes first to the top of the page the view is in, as a book's reader expects. ↑ and ↓ scroll.
+
 - The worker renders one page at a time and checks for a newer ask between pages, so a long list never delays the
   pages that came into view.
 - A picture larger than the texture limit is not rendered whole: the zoom is capped so a page fits (the cap is told in

@@ -107,8 +107,8 @@ ACTIONS := [Action]ui.Command{
 	.Zoom_In       = {id = "zoom_in", label = i18n.later("Zoom in"), group = i18n.later("View"), icon = lucide.ZOOM_IN, tags = {"bigger", "magnify"}},
 	.Zoom_Out      = {id = "zoom_out", label = i18n.later("Zoom out"), group = i18n.later("View"), icon = lucide.ZOOM_OUT, tags = {"smaller"}},
 	.Fit           = {id = "fit", label = i18n.later("Fit the width"), group = i18n.later("View"), icon = lucide.MOVE_HORIZONTAL, tags = {"zoom", "reset", "width"}},
-	.Previous_Page = {id = "previous_page", label = i18n.later("Previous page"), group = i18n.later("View"), keys = {{.Page_Up, {}}}, icon = lucide.CHEVRON_UP, tags = {"back"}},
-	.Next_Page     = {id = "next_page", label = i18n.later("Next page"), group = i18n.later("View"), keys = {{.Page_Down, {}}}, icon = lucide.CHEVRON_DOWN, tags = {"forward"}},
+	.Previous_Page = {id = "previous_page", label = i18n.later("Previous page"), group = i18n.later("View"), keys = {{.Page_Up, {}}, {.Left, {}}}, icon = lucide.CHEVRON_UP, tags = {"back"}},
+	.Next_Page     = {id = "next_page", label = i18n.later("Next page"), group = i18n.later("View"), keys = {{.Page_Down, {}}, {.Right, {}}}, icon = lucide.CHEVRON_DOWN, tags = {"forward"}},
 	.First_Page    = {id = "first_page", label = i18n.later("First page"), group = i18n.later("View"), keys = {{.Home, {.Ctrl}}}, icon = lucide.ARROW_UP, tags = {"top", "start"}},
 	.Last_Page     = {id = "last_page", label = i18n.later("Last page"), group = i18n.later("View"), keys = {{.End, {.Ctrl}}}, icon = lucide.ARROW_DOWN, tags = {"bottom", "end"}},
 	.Open_With     = {id = "open_with", label = i18n.later("Open with another application…"), group = i18n.later("Document"), icon = lucide.APP_WINDOW, tags = {"system's application", "external", "default app"}},
@@ -234,8 +234,8 @@ action_run :: proc(app: ^App, a: Action) {
 	case .Zoom_In:       ui.zoom_zone_by(&app.zone, ui.feel(&app.main.state).zoom_step)
 	case .Zoom_Out:      ui.zoom_zone_by(&app.zone, 1 / ui.feel(&app.main.state).zoom_step)
 	case .Fit:           ui.zoom_zone_reset(&app.zone)
-	case .Previous_Page: go_to_page(app, max(app.current - 1, 0))
-	case .Next_Page:     go_to_page(app, min(app.current + 1, len(app.snapshot.pages) - 1))
+	case .Previous_Page: go_to_page(app, max(app.aim_at_top ? app.aim - 1 : app.aim, 0))
+	case .Next_Page:     go_to_page(app, min(app.aim + 1, len(app.snapshot.pages) - 1))
 	case .First_Page:    go_to_page(app, 0)
 	case .Last_Page:     go_to_page(app, len(app.snapshot.pages) - 1)
 	case .Go_To_Page:    palette_open_on(app, .Go_To)

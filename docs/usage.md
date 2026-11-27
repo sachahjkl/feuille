@@ -17,7 +17,7 @@ nothing on the page takes the keyboard or asks for input. A protected PDF asks f
 | Key or action | What it does |
 |---|---|
 | Wheel, scroll bar | moves through the pages |
-| Page Up, Page Down, Ctrl+Home, Ctrl+End | the previous, next, first, last page |
+| Page Up or ←, Page Down or →, Ctrl+Home, Ctrl+End | the previous, next, first, last page |
 | A thumbnail | shows that page (Ctrl+B shows or hides the thumbnails) |
 | Ctrl+wheel over the pages, the zoom buttons | zoom the pages; ↔ fits the widest page to the window again |
 | Ctrl+G | goes to a page (`@` in the palette, then its number) |

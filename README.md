@@ -64,7 +64,7 @@ One version, everything in it; a licence only says you support it. What comes ne
 |---|---|
 | Ctrl+O, Ctrl+Shift+O | open a PDF; a recent one |
 | Ctrl+S, Ctrl+E | save a copy; save the page alone |
-| Page Up, Page Down, Ctrl+Home, Ctrl+End, Ctrl+G | the previous, next, first, last page; a page by its number |
+| Page Up or ←, Page Down or →, Ctrl+Home, Ctrl+End, Ctrl+G | the previous, next, first, last page; a page by its number |
 | Ctrl+wheel | zoom the pages |
 | Ctrl+R, Ctrl+Shift+R | turn the page right, left |
 | Alt+Up, Alt+Down | move the page |

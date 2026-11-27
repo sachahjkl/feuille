@@ -123,6 +123,8 @@ App :: struct {
 	to_top:        bool,          // a new document: the view goes back to its start
 	go_to:         int,           // a page to bring to the top of the view (-1: none)
 	current:       int,           // the page at the middle of the view, as the last build found it
+	aim:           int,           // the page at the top of where the view scrolls to: the page keys step from it
+	aim_at_top:    bool,          // ... and the view goes to its top (else Page Up goes there first)
 	pictures:      map[u64]Shown,
 	last_ask:      [dynamic]Render_Ask,
 	frame_asks:    [dynamic]Render_Ask,   // the pictures this frame wants (send_asks)
