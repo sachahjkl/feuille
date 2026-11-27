@@ -479,15 +479,14 @@ signature_view :: proc(v: ^ui.View, app: ^App) {
 	if ui.dialog_body("body", stretch = true) {
 		library_part(app, em)
 		ui.space(ui.SPACE_3)
-		ui.next({width = ui.fill(), height = ui.children_sum()})
-		if ui.row(.Center) {
-			ui.spacer(ui.fill())
-			if ui.segmented("###sign_tabs", {i18n.tr("Type it"), i18n.tr("Draw it")}, &s.tab) {
+		// (the toolkit's tabs: the line under them, the chosen one rising out of it, as every program's)
+		ui.next({width = ui.fill(), height = ui.px(math.round(em * SIGN_TABS_EM))})
+		if ui.row() {
+			if ui.tabs("sign_tabs", {i18n.tr("Type it"), i18n.tr("Draw it")}, {lucide.TYPE, lucide.PENCIL}, &s.tab) {
 				sig.mode = Sign_Mode(s.tab)
 				s.focus = sig.mode == .Typed
 				sign_changed(app)
 			}
-			ui.spacer(ui.fill())
 		}
 		ui.space(ui.SPACE_3)
 		switch sig.mode {
@@ -667,6 +666,8 @@ date_picker :: proc(s: ^Sign_State) -> bool {
 
 // The preview's least height, in ems: what it takes in a dialog not made taller.
 SIGN_PREVIEW_LEAST_EM :: 7
+// The row of the tabs Type it and Draw it, in ems.
+SIGN_TABS_EM :: 2.4
 // ... and the height, in ems, from which it shows the zoom's bar.
 SIGN_PREVIEW_BAR_EM :: 12
 // The paper around the signature, in device pixels at the zoom 100 %.
