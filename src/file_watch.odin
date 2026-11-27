@@ -25,8 +25,9 @@ Doc_Watch :: struct {
 
 @(private = "file")
 Doc_Changed :: struct {
-	app:  ^App,
-	path: string,   // the heap's
+	app:   ^App,
+	path:  string,   // the heap's
+	stamp: i64,      // the file's stamp now
 }
 
 doc_watch_start :: proc(app: ^App) {
@@ -92,7 +93,7 @@ doc_watch_check :: proc(d: ^Doc_Watch) {
 	if !still { return }
 	heap := runtime.heap_allocator()
 	c := new(Doc_Changed, heap)
-	c^ = {app = d.app, path = strings.clone(path, heap)}
+	c^ = {app = d.app, path = strings.clone(path, heap), stamp = now}
 	if !ui.post(&d.app.main.state, doc_changed, c) { doc_changed_free(c) }
 }
 
@@ -103,7 +104,8 @@ doc_changed :: proc(data: rawptr, _: u64) {
 	defer doc_changed_free(c)
 	app := c.app
 	s := app.snapshot
-	if s == nil || s.path != c.path { return }
+	// (feuille's own save: its snapshot, posted before, already holds this stamp)
+	if s == nil || s.path != c.path || s.stamp == c.stamp { return }
 	name := filepath.base(c.path)
 	if s.edited {
 		say(app, i18n.tr("%s changed on the disk: your edits stay on the version opened before"), name)

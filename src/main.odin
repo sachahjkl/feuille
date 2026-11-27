@@ -6,6 +6,7 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 import "gt:cli"
+import fsx "gt:fsx"
 import png "gt:png"
 import thumbnail "thumbnail"
 import host "gt:host"
@@ -118,7 +119,8 @@ thumbnail_command :: proc(args: []string) -> cli.Exit {
 	if err != nil { fmt.eprintfln("feuille: %s cannot be read", args[0]); return .Failed }
 	rgba, w, h, ok := thumbnail.render(data, size)
 	if !ok { fmt.eprintfln("feuille: %s has no page to show", args[0]); return .Failed }
-	if os.write_entire_file(args[1], png.encode(rgba, w, h)) != nil { fmt.eprintfln("feuille: %s cannot be written", args[1]); return .Failed }
+	// (a file manager reads it once the thumbnailer ends: never a part of it)
+	if !fsx.write_atomic(args[1], png.encode(rgba, w, h)) { fmt.eprintfln("feuille: %s cannot be written", args[1]); return .Failed }
 	return .Done
 }
 

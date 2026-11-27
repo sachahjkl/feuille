@@ -8,6 +8,7 @@ import "base:runtime"
 import "core:fmt"
 import "core:math"
 import "core:os"
+import fsx "gt:fsx"
 import "core:path/filepath"
 import "core:strings"
 import "gt:draw"
@@ -379,7 +380,7 @@ sign_file_work :: proc(data: rawptr) {
 		}
 	} else {
 		text := signatures_text(j.list[:], context.temp_allocator)
-		j.ok = os.write_entire_file(j.path, transmute([]u8)text) == nil
+		j.ok = fsx.write_atomic(j.path, transmute([]u8)text, fsx.DOCUMENT)
 	}
 	if !ui.post(&j.app.main.state, sign_file_done, j) { sign_file_job_free(j) }
 }

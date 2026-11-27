@@ -308,7 +308,8 @@ edit_now :: proc(w: ^Worker, a: ^Edit_Ask) -> (changed: bool) {
 	case .Save:
 		bytes, ok := pdf.write(list_of(w, nil), w.base, w.allocator)
 		defer delete(bytes, w.allocator)
-		written := ok && os.write_entire_file(a.path, bytes) == nil
+		// (whole or nothing: a save cut halfway leaves the file as it was, with its mode, owner and links)
+		written := ok && fsx.write_atomic(a.path, bytes, fsx.DOCUMENT)
 		if written {
 			w.edits.saved = edit_state(&w.edits)
 			delete(w.path, w.allocator)
@@ -320,7 +321,7 @@ edit_now :: proc(w: ^Worker, a: ^Edit_Ask) -> (changed: bool) {
 	case .Extract:
 		bytes, ok := pdf.write(list_of(w, a.ids), 0, w.allocator)
 		defer delete(bytes, w.allocator)
-		post_saved(w, a.path, ok && os.write_entire_file(a.path, bytes) == nil, true)
+		post_saved(w, a.path, ok && fsx.write_atomic(a.path, bytes, fsx.DOCUMENT), true)
 		return false
 	case .Print:
 		print_start(w, a.path, a.layer)
