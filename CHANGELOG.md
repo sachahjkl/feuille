@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.14.1] - 2026-11-27 10:48
+
+### Changed
+- **Dropdowns are tighter.** Their sides have less padding, an open list is never narrower than its rows, and the tooltip of a cut word fits on one line.
+
 ## [0.14.0] - 2026-11-27 08:05
 
 ### Added
@@ -143,6 +148,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.14.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.14.1
 [0.14.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.14.0
 [0.13.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.13.0
 [0.12.2]: https://github.com/sachahjkl/feuille/releases/tag/v0.12.2
