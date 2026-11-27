@@ -8,6 +8,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:testing"
+import config "gt:config"
 import debug "gt:debug"
 import host "gt:host"
 import "gt:platform"
@@ -210,4 +211,15 @@ a_dropped_pdf_opens :: proc(t: ^testing.T) {
 	platform.drop_inject(app.main.win, .Drop, {100, 100})
 	session.wait_until(s, app, pictures_ready, "the dropped file is drawn")
 	testing.expect_value(t, len(app.snapshot.pages), 1)
+}
+
+@(test)
+compact_rows_toggles_with_ctrl_shift_alt_r :: proc(t: ^testing.T) {
+	s, app := start(t, "")
+	session.frames(s, 2)
+	testing.expect(t, config.float_of(&app.prefs, "appearance.density") >= 1, "starts at default density")
+	session.key(s, .R, {.Ctrl, .Shift, .Alt})
+	testing.expect(t, config.float_of(&app.prefs, "appearance.density") < 1, "Ctrl+Shift+Alt+R enables compact rows")
+	session.key(s, .R, {.Ctrl, .Shift, .Alt})
+	testing.expect(t, config.float_of(&app.prefs, "appearance.density") >= 1, "Ctrl+Shift+Alt+R restores default density")
 }
