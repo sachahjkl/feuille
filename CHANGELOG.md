@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.15.1] - 2026-11-27 12:58
+
+### Security
+- **A program that feuille starts is found only in the folders of the PATH.** It is never taken from the current folder; on Windows, a batch file's arguments are quoted so that they cannot run other commands, and no console window opens.
+
 ## [0.15.0] - 2026-11-27 11:12
 
 ### Changed
@@ -153,6 +158,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.15.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.15.1
 [0.15.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.15.0
 [0.14.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.14.1
 [0.14.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.14.0
