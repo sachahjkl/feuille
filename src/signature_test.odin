@@ -390,3 +390,44 @@ the_strokes_are_kept_as_text_and_read_back :: proc(t: ^testing.T) {
 	defer for st in junk { delete(st) }
 	testing.expect_value(t, len(junk), 0)
 }
+
+// The signature dialog switches between "Type it" and "Draw it" with Segmented tabs directly on the dialog's surface,
+// with no separate page frame around the chosen tab's content.
+@(test)
+the_signature_tabs_use_segmented_style_without_a_page_frame :: proc(t: ^testing.T) {
+	s, app := start(t, write_pdf(t, "tabs.pdf", {pages = {{size = {300, 400}}}}))
+	session.wait_until(s, app, pictures_ready, "the document is drawn")
+	session.key(s, .S)
+	session.wait_until(s, app, dialog_ready, "the dialog opens")
+	session.frames(s, 30)   // (the dialog's fade settles)
+	testing.expect(t, session.find(s, "sign_tab_page") == nil, "no manual page frame under the tabs")
+	testing.expect(t, session.find(s, "sign_tab_row") == nil, "no manual tab_line_draw row")
+	t0 := session.get(s, "sign_tabs_0")
+	t1 := session.get(s, "sign_tabs_1")
+	testing.expect(t, app.sign.sig.mode == .Typed && app.sign.tab == 0, "starts on Type it")
+	testing.expect(t, session.find(s, "sign_name") != nil && session.find(s, "sign_pad") == nil, "shows typed controls")
+
+	// The chosen key and the unchosen track stand apart from each other and from the dialog's surface.
+	k := app.main.state.scale
+	session.move(s, {5, 5})
+	session.frames(s, 4)
+	img := session.capture(s)
+	y := int(session.center(t0).y * k)
+	key := session.pixel(img, int((t0.rect.min.x + 4) * k), y)
+	track := session.pixel(img, int((t1.rect.min.x + 4) * k), y)
+	ground := session.pixel(img, int((t1.rect.max.x + 24) * k), y)
+	testing.expectf(t, !session.near(track, ground, 4), "the track stands off the dialog surface: %v vs %v", track, ground)
+	testing.expectf(t, !session.near(key, track, 4) && !session.near(key, ground, 4), "the chosen key stands off its track: %v vs %v", key, track)
+
+	session.click(s, "sign_tabs_1")
+	session.frames(s, 2)
+	testing.expect_value(t, app.sign.tab, 1)
+	testing.expect_value(t, app.sign.sig.mode, Sign_Mode.Drawn)
+	testing.expect(t, session.find(s, "sign_pad") != nil && session.find(s, "sign_name") == nil, "shows drawn controls")
+
+	session.click(s, "sign_tabs_0")
+	session.frames(s, 2)
+	testing.expect_value(t, app.sign.tab, 0)
+	testing.expect_value(t, app.sign.sig.mode, Sign_Mode.Typed)
+	testing.expect(t, session.find(s, "sign_name") != nil && session.find(s, "sign_pad") == nil, "shows typed controls again")
+}

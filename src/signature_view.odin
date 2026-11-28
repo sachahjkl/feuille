@@ -479,35 +479,24 @@ signature_view :: proc(v: ^ui.View, app: ^App) {
 	if ui.dialog_body("body", stretch = true) {
 		library_part(app, em)
 		ui.space(ui.SPACE_3)
-		// (the toolkit's tabs, the line under them across the dialog, and under it the chosen tab's page: the tab and what
-		// it shows are one shape, as a folder's tab and its sheet; tabs.md)
-		ui.next({width = ui.fill(), height = ui.px(math.round(em * SIGN_TABS_EM)), axis = .X})
-		tab_row := ui.build_box({}, "###sign_tab_row")
-		tab_row.custom = ui.tab_line_draw
-		if ui.parent(tab_row) {
-			if ui.tabs("sign_tabs", {i18n.tr("Type it"), i18n.tr("Draw it")}, {lucide.TYPE, lucide.PENCIL}, &s.tab) {
-				sig.mode = Sign_Mode(s.tab)
-				s.focus = sig.mode == .Typed
-				sign_changed(app)
+		// (the toolkit's Segmented tabs on the dialog's own surface: a switcher inside the dialog's frame, no page frame
+		// of its own; src/md/features/signature.md)
+		surface := ui.Tab_Surface{ground = ui.color("background"), edge = ui.color("border")}
+		surface.ground.a = 1
+		if ui.tabs_over(.Segmented, surface) {
+			ui.next({width = ui.fill(), height = ui.px(math.round(em * SIGN_TABS_EM))})
+			if ui.row() {
+				if ui.tabs_ex("sign_tabs", {i18n.tr("Type it"), i18n.tr("Draw it")}, {lucide.TYPE, lucide.PENCIL}, &s.tab, {style = .Segmented}).changed {
+					sig.mode = Sign_Mode(s.tab)
+					s.focus = sig.mode == .Typed
+					sign_changed(app)
+				}
 			}
 		}
-		page: ui.Color
-		if ui.tags("tab_on") { page = ui.color("background") }
-		page.a = 1
-		pad := math.round(em * SIGN_TAB_PAGE_PAD_EM)
-		ui.next({width = ui.fill(), height = ui.children_sum(), axis = .X, bg = page, radius = 0})
-		if ui.parent(ui.build_box({.Draw_Background, .Draw_Border}, "###sign_tab_page")) {
-			ui.spacer(ui.px(pad))
-			ui.next({width = ui.fill(), height = ui.children_sum(), axis = .Y})
-			if ui.parent(ui.build_box({}, "###sign_tab_col")) {
-				ui.spacer(ui.px(pad))
-				switch sig.mode {
-				case .Typed: typed_part(app, em)
-				case .Drawn: drawn_part(app, em)
-				}
-				ui.spacer(ui.px(pad))
-			}
-			ui.spacer(ui.px(pad))
+		ui.space(ui.SPACE_3)
+		switch sig.mode {
+		case .Typed: typed_part(app, em)
+		case .Drawn: drawn_part(app, em)
 		}
 		ui.space(ui.SPACE_3)
 		common_part(app, em)
@@ -682,10 +671,8 @@ date_picker :: proc(s: ^Sign_State) -> bool {
 
 // The preview's least height, in ems: what it takes in a dialog not made taller.
 SIGN_PREVIEW_LEAST_EM :: 7
-// The row of the tabs Type it and Draw it, in ems.
-SIGN_TABS_EM :: 2.4
-// The margin inside the chosen tab's page, in ems.
-SIGN_TAB_PAGE_PAD_EM :: 0.8
+// The row of the tabs Type it and Draw it, in ems (matching tab_panel's Segmented height).
+SIGN_TABS_EM :: 2.0
 // ... and the height, in ems, from which it shows the zoom's bar.
 SIGN_PREVIEW_BAR_EM :: 12
 // The paper around the signature, in device pixels at the zoom 100 %.

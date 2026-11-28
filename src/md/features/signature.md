@@ -14,7 +14,9 @@ It is not a digital signature: nothing proves who signed. It is the picture of a
   from last time. "Place" closes the dialog and keeps the tool on: the signature follows the pointer over the pages,
   and a click puts it there, centred on the click. The tool stays on for the next page (initials on every page);
   Escape leaves it. The style bar has "Change the signature…" and the ink's colours.
-- Two ways, two tabs of the dialog:
+- Two ways, two tabs of the dialog in the toolkit's Segmented style (`ui.tabs_ex`, `ui.tabs_over(.Segmented, ...)` on
+  the dialog's own surface, with no page frame of their own: the dialog is already the frame, and the colour, the words
+  and the preview below serve both):
   - **Typed**: the name in one of five script fonts (each row of the list shows the name in its font), with the
     effects of a pen: a tilt, a heavier pen, a flourish under it. It is one stamp of gt:pdf with its `face`, so it
     moves, turns and restyles as one mark, and its text stays copyable in the file.
