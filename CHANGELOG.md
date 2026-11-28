@@ -3,6 +3,11 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.19.0] - 2026-11-28 11:19
+
+### Changed
+- **About Feuille opens a dialog with version, licence, diagnostics and What's new.** Shift+F1 (or the command palette) now opens an About dialog with the leaf logo, Feuille and toolkit versions, MIT licence, a built-in What's new button, links to the site, release notes and issue tracker, Copy version and Copy diagnostics.
+
 ## [0.18.0] - 2026-11-28 00:25
 
 ### Changed
@@ -187,6 +192,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.19.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.19.0
 [0.18.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.18.0
 [0.17.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.17.1
 [0.17.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.17.0
