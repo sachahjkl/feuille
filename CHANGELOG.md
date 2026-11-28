@@ -3,6 +3,12 @@
 All notable changes to feuille are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the versions follow [semantic versioning](https://semver.org/).
 
+## [0.18.0] - 2026-11-28 00:25
+
+### Changed
+- **The signature dialog uses Segmented tabs.** "Type it" and "Draw it" sit in a segmented switcher directly on the dialog's surface with no separate page frame. The debug window (Ctrl+Alt+Shift+D) is available in every build, and the first frame renders on the CPU while the graphics device starts.
+- **Compact rows shortcut.** Compact rows now uses Ctrl+Shift+Alt+R instead of Ctrl+Alt+Shift+D, leaving Ctrl+Alt+Shift+D for the debug window.
+
 ## [0.17.1] - 2026-11-27 20:45
 
 ### Changed
@@ -181,6 +187,7 @@ and the versions follow [semantic versioning](https://semver.org/).
 - **Nothing on the page blocks it.** Signatures, annotations and form fields are hidden when a PDF opens, so nothing takes the page or asks for input; Ctrl+L shows them as a picture. A protected PDF asks for its password in the window.
 - **feuille's mark.** An autumn maple leaf in flight: the program's icon, the README's picture and the project's image.
 
+[0.18.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.18.0
 [0.17.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.17.1
 [0.17.0]: https://github.com/sachahjkl/feuille/releases/tag/v0.17.0
 [0.16.1]: https://github.com/sachahjkl/feuille/releases/tag/v0.16.1
