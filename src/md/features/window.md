@@ -9,8 +9,9 @@ who knows one knows the others.
 ## Decisions
 
 - Everything that is not the document is the toolkit's: the settings page (`prefs_page`), the palette, the keys' sheet,
-  the crash bar, the updater, the licence page, the What's new page. feuille gives them its words and its table of
-  actions (`src/actions.odin`), nothing more. A need they do not meet goes into the toolkit, not here.
+  the About modal (`ui.about_modal`, with its built-in What's new button and diagnostics), the crash bar, the updater,
+  the licence page, the What's new page. feuille gives them its words and its table of actions (`src/actions.odin`),
+  nothing more. A need they do not meet goes into the toolkit, not here.
 - One table of actions: the title bar's tools, the keys, the palette, the sheet and the context menus read it. A tool
   states its act name, so the palette's Shift+Enter shows the button.
 - The suite's program commands, by the suite's ids and keys (`src/program_actions.odin`): New window, Minimize

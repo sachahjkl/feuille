@@ -198,6 +198,21 @@ the_keys_turn_the_pages :: proc(t: ^testing.T) {
 	session.wait_until(s, Want{app, 2}, at, "two quick presses: the third page")
 }
 
+// Shift+F1 opens the About modal; its "What's new" button closes it and opens the built-in What's new page.
+@(test)
+about_modal_opens_and_jumps_to_whats_new :: proc(t: ^testing.T) {
+	s, app := start(t, "")
+	session.wait_text(s, "Open a PDF")
+	session.key(s, .F1, {.Shift})
+	session.wait_until(s, proc(s: ^session.Session) -> bool {
+		b := session.find(s, "modal_about")
+		return b != nil && b.transparency < 0.01 && session.find(s, "about_whats_new") != nil
+	}, "the About modal is shown")
+	testing.expect(t, app.about_open, "the About modal is open")
+	session.click(s, "about_whats_new")
+	session.wait_until(s, app, proc(s: ^session.Session, app: ^App) -> bool { return !app.about_open && app.settings_open }, "What's new opens in settings")
+}
+
 // A PDF dropped on the window opens.
 @(test)
 a_dropped_pdf_opens :: proc(t: ^testing.T) {

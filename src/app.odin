@@ -150,6 +150,8 @@ App :: struct {
 	shell_menu:    ui.Shell_Menu, // the system's shell actions for the open PDF (menus.odin)
 	doc_watch:     Doc_Watch,     // the document's file followed on the disk (file_watch.odin)
 	menu_was_open: bool,
+	about_open:    bool,          // ui.about_modal (program_actions.odin)
+	about_logo:    Maybe(setup.Logo),
 
 	// what waits for an answer of a confirmation
 	leave_next:    Leave_Next,
@@ -302,6 +304,7 @@ app_close :: proc(app: ^App) {
 	thumbs_clear(app)
 	ui.shell_menu_destroy(&app.shell_menu)   // (its icons' textures are this renderer's)
 	ui.open_with_destroy(&app.open_with)     // (so are its applications' icons)
+	setup.logo_destroy(&app.shared.r, &app.about_logo)
 	// (a dialog's answer comes to the window's state: the chores end before it does)
 	ui.chores_stop()
 	// (the install's thread waited for, before the window's state goes; its vendor's mark is this renderer's)

@@ -53,7 +53,7 @@ menus_build :: proc(app: ^App, em: f32) {
 		ui.menu_separator()
 		item(app, .Copy_Path)
 		item(app, .Reveal)
-		if ui.menu_submenu(i18n.tr("Open with"), icon = ACTIONS[.Open_With].icon) { open_with_items(app) }
+		if ui.menu_submenu(i18n.tr("Open with"), icon = ACTIONS[.Open_With].icon, icon_font = ui.lucide_icons()) { open_with_items(app) }
 		_ = ui.shell_menu_items(&app.shell_menu, prefix = "sh", separator = true, win = app.main.win, invoke = !app.headless)
 	} else if app.menu_was_open {
 		app.menu_was_open = false

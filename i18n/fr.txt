@@ -358,8 +358,8 @@ fr Ouvrir
 en Page %d of %d
 fr Page %d sur %d
 
-en Feuille %s, on gui_toolkit %s. %s
-fr Feuille %s, sur gui_toolkit %s. %s
+en Open a PDF at once, arrange its pages, put text on them.
+fr Ouvrir un PDF tout de suite, organiser ses pages, y écrire du texte.
 
 en The version is copied
 fr La version est copiée

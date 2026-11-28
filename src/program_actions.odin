@@ -8,8 +8,11 @@ import "base:runtime"
 import "core:fmt"
 import config "gt:config"
 import i18n "gt:i18n"
+import lucide "gt:lucide"
 import "gt:platform"
 import prefs_page "gt:prefs_page"
+import "gt:render"
+import setup "gt:setup"
 import update "gt:update"
 import "gt:ui"
 
@@ -41,7 +44,44 @@ update_installed :: proc(app: ^App) -> bool { return app.updates.updater != nil 
 // About feuille
 
 act_about :: proc(app: ^App) {
-	say(app, i18n.tr("Feuille %s, on gui_toolkit %s. %s"), APP_VERSION, ui.VERSION, SITE_URL)
+	if app.about_logo == nil {
+		if l, ok := setup.logo_make(&app.shared.r, ICON_PNGS[3].png); ok { app.about_logo = l }
+	}
+	app.about_open = true
+}
+
+// The About modal (ui.about_modal): logo, version, licence, built-in What's new, links and graphics diagnostics.
+about_build :: proc(app: ^App) {
+	if !app.about_open { return }
+	tex: render.Texture
+	if l, ok := app.about_logo.?; ok { tex = l.texture }
+	a := render.adapter_info(&app.shared.r)
+	adapter := a.name != "" ? a.name : "?"
+	diag := fmt.tprintf("Graphics adapter: %s%s\nGraphics API: %s (%s)",
+		adapter, a.software ? " (software rasterizer)" : "", a.api, render.backend_name())
+	links := [?]ui.About_Link{
+		{label = i18n.tr("Report a problem"), url = REPOSITORY_URL + "/issues", icon = lucide.BUG},
+	}
+	ui.about_modal("about", &app.about_open, {
+		name        = APP_TITLE,
+		version     = APP_VERSION,
+		tagline     = i18n.tr("Open a PDF at once, arrange its pages, put text on them."),
+		licence     = "MIT",
+		copyright   = "© 2026 Froment Software",
+		logo        = tex,
+		icon        = lucide.LEAF,
+		on_whats_new = proc(user: rawptr) {
+			app := (^App)(user)
+			app.settings_open = true
+			prefs_page.show(&app.settings_page, &app.prefs, settings_options(app), prefs_page.CHANGELOG_PAGE)
+		},
+		website_url  = SITE_URL,
+		releases_url = REPOSITORY_URL + "/releases",
+		links        = links[:],
+		diagnostics  = diag,
+		on_link      = proc(url: string, user: rawptr) { launch((^App)(user), .Url, url) },
+		user         = app,
+	})
 }
 
 act_website :: proc(app: ^App) { launch(app, .Url, SITE_URL) }

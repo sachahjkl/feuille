@@ -55,6 +55,7 @@ view_build :: proc(h: ^host.Host, size: host.Vec2) {
 		page := ui.build_box({.Draw_Background}, "###page")
 		if ui.parent(page) { build_page(app, em, size) }
 		menus_build(app, em)
+		about_build(app)
 		// (the install's dialog and the settings' Installation page; headless, nothing is read or offered)
 		install_follow(app)
 		sign_follow(app)
